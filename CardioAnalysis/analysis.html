@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HR Timer Session Review</title>
+    <style>
+        :root {
+            --theme-color: #0868c0;
+            --accent: var(--theme-color);
+            --accent-dark: color-mix(in srgb, var(--accent) 65%, black);
+            --accent-bright: color-mix(in srgb, var(--accent) 75%, white);
+            --bg: #0b0f18;
+            --outside-bg: color-mix(in srgb, var(--bg) 55%, #000);
+            --card: #141827;
+            --panel: #12162a;
+            --text: #f8f8f8;
+            --muted: #a0a0ad;
+            --zone1: #59a3d0;
+            --zone2: #63c29c;
+            --zone3: #d7c35e;
+            --zone4: #f39c4c;
+            --zone5: #e85d5d;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--outside-bg);
+            color: var(--text);
+            font-family: 'Poppins', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+        }
+
+        .analysis-panel {
+            width: min(95vw, 980px);
+            background: var(--card);
+            border: 1px solid var(--accent);
+            border-radius: 18px;
+            padding: clamp(14px, 2.5vmin, 22px);
+            box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 20%, black);
+        }
+
+        .analysis-header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .analysis-title {
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: clamp(1rem, 2.2vmin, 1.2rem);
+        }
+
+        .analysis-sub {
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        .analysis-score {
+            --score-band: #2f80ff;
+            --score-glow: rgba(47, 128, 255, 0.45);
+            background: var(--panel);
+            border: 1px solid color-mix(in srgb, var(--score-band) 55%, #000);
+            border-radius: 16px;
+            padding: 12px 16px 14px;
+            min-width: 220px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 0 24px rgba(0,0,0,0.3);
+        }
+
+        .analysis-score::before {
+            content: "";
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            top: 10px;
+            height: 5px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, color-mix(in srgb, var(--score-band) 30%, #000), var(--score-band));
+            opacity: 0.95;
+        }
+
+        .analysis-score .score-label {
+            text-transform: uppercase;
+            font-size: 0.65rem;
+            letter-spacing: 0.18em;
+            color: var(--muted);
+            margin-top: 8px;
+        }
+
+        .analysis-score .score-value {
+            font-size: 3.4rem;
+            font-weight: 900;
+            margin: 6px 0 2px;
+            color: #fff;
+            text-shadow: none;
+        }
+
+        .analysis-score .score-type {
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+
+        .analysis-score .score-desc {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            color: color-mix(in srgb, var(--score-band) 70%, #fff);
+            margin-top: 2px;
+        }
+
+        .profile-banner {
+            margin-top: 12px;
+            background: var(--panel);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 10px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 12px;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .profile-banner strong {
+            color: var(--accent);
+        }
+
+        .profile-banner .muted {
+            color: var(--muted);
+        }
+
+        .analysis-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 14px;
+        }
+
+        .analysis-controls .btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.8rem;
+        }
+
+        .analysis-file {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #111;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .analysis-file input {
+            display: none;
+        }
+
+        .analysis-controls select {
+            background: #111;
+            color: var(--text);
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 8px 10px;
+        }
+
+        .analysis-controls .btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.8rem;
+        }
+
+        .analysis-color {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #111;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+
+        .analysis-color input[type=color] {
+            border: none;
+            background: transparent;
+            width: 32px;
+            height: 28px;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        .analysis-status {
+            color: var(--muted);
+            font-size: 0.9rem;
+            flex-basis: 100%;
+        }
+
+        .log-modal {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.45);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 120ms ease;
+            z-index: 600;
+        }
+
+        .log-modal.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .log-panel {
+            width: min(92vw, 520px);
+            max-height: 70vh;
+            background: var(--panel);
+            border: 1px solid color-mix(in srgb, var(--accent) 60%, #000);
+            border-radius: 12px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            color: var(--accent);
+        }
+
+        .log-close {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 2px 6px;
+            font-size: 9px;
+            cursor: pointer;
+        }
+
+        .log-table {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            font-size: 10px;
+        }
+
+        .log-table .head {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 9px;
+        }
+
+        .log-list {
+            flex: 1;
+            overflow: auto;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            padding-top: 6px;
+        }
+
+        .analysis-status.error {
+            color: #ff9a9a;
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .analysis-card {
+            background: var(--panel);
+            border: 1px solid color-mix(in srgb, var(--accent) 35%, #000);
+            border-radius: 14px;
+            padding: 12px;
+        }
+
+        .analysis-card-title {
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.18em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .analysis-metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 6px;
+        }
+
+        .analysis-metric strong {
+            font-size: 1.05rem;
+        }
+
+        .zone-row {
+            display: grid;
+            grid-template-columns: 36px 1fr 48px;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+        }
+
+        .zone-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--chart-bg, #0c0f18);
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .zone-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: inherit;
+            transition: width 0.6s ease;
+        }
+
+        .analysis-chart {
+            margin-top: 16px;
+            background: var(--chart-bg, #0c0f18);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 8px;
+        }
+
+        #analysisChart {
+            width: 100%;
+            height: 180px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <section class="analysis-panel" id="analysisPanel">
+        <div class="analysis-header">
+            <div>
+                <div class="analysis-title">HR Timer Session Review</div>
+                <div class="analysis-sub">Upload a CSV from the HR timer to score the session and classify the training.</div>
+            </div>
+            <div class="analysis-score" id="analysisScoreCard">
+                <div class="score-label">Session Score</div>
+                <div class="score-value" id="analysisScore">--</div>
+                <div class="score-type" id="analysisType">No data</div>
+                <div class="score-desc" id="analysisScoreDesc">---</div>
+            </div>
+        </div>
+        <div class="profile-banner" id="analysisProfileBanner">
+            <strong id="analysisProfileName">No profile loaded</strong>
+            <span class="muted" id="analysisProfileMeta">Use Profile to set age, height, and weight.</span>
+            <span class="muted" id="analysisSessionType"></span>
+        </div>
+
+        <div class="analysis-controls">
+            <label class="analysis-file">
+                <input type="file" id="analysisFile" accept=".csv" />
+                <span>Select CSV</span>
+            </label>
+            <select id="analysisSample">
+                <option value="">Load recent CSV...</option>
+            </select>
+            <label class="analysis-color">
+                Accent
+                <input type="color" id="analysisColor" value="#0868c0" />
+            </label>
+            <button class="btn" id="logToggle" type="button">LOG</button>
+            <select id="analysisClear">
+                <option value="">Clear saved...</option>
+                <option value="saved">Clear saved summaries</option>
+                <option value="recent">Clear recent list</option>
+                <option value="all">Clear both</option>
+            </select>
+            <div class="analysis-status" id="analysisStatus">No file loaded.</div>
+        </div>
+
+
+        <div class="analysis-grid">
+            <div class="analysis-card">
+                <div class="analysis-card-title">Session</div>
+                <div class="analysis-metric"><span>Duration</span><strong id="analysisDuration">--</strong></div>
+                <div class="analysis-metric"><span>Avg HR</span><strong id="analysisAvg">--</strong></div>
+                <div class="analysis-metric"><span>Min HR</span><strong id="analysisMin">--</strong></div>
+                <div class="analysis-metric"><span>Max HR</span><strong id="analysisMax">--</strong></div>
+            </div>
+
+            <div class="analysis-card">
+                <div class="analysis-card-title">Intensity</div>
+                <div class="analysis-metric"><span>Effort Score</span><strong id="analysisEffort">--</strong></div>
+                    <div class="zone-row"><span id="zone1Label">Z1</span><div class="zone-bar" id="zone1BarWrap"><div class="zone-fill" id="zone1Bar" style="background: var(--zone1);"></div></div><em id="zone1Val">--</em></div>
+                    <div class="zone-row"><span id="zone2Label">Z2</span><div class="zone-bar" id="zone2BarWrap"><div class="zone-fill" id="zone2Bar" style="background: var(--zone2);"></div></div><em id="zone2Val">--</em></div>
+                    <div class="zone-row"><span id="zone3Label">Z3</span><div class="zone-bar" id="zone3BarWrap"><div class="zone-fill" id="zone3Bar" style="background: var(--zone3);"></div></div><em id="zone3Val">--</em></div>
+                    <div class="zone-row"><span id="zone4Label">Z4</span><div class="zone-bar" id="zone4BarWrap"><div class="zone-fill" id="zone4Bar" style="background: var(--zone4);"></div></div><em id="zone4Val">--</em></div>
+                    <div class="zone-row"><span id="zone5Label">Z5</span><div class="zone-bar" id="zone5BarWrap"><div class="zone-fill" id="zone5Bar" style="background: var(--zone5);"></div></div><em id="zone5Val">--</em></div>
+                </div>
+
+            <div class="analysis-card">
+                <div class="analysis-card-title">Peaks</div>
+                <div class="analysis-metric"><span>Peak Count</span><strong id="analysisPeakCount">--</strong></div>
+                <div class="analysis-metric"><span>Total Peak Time</span><strong id="analysisPeakTime">--</strong></div>
+                <div class="analysis-metric"><span>Longest Peak</span><strong id="analysisPeakLongest">--</strong></div>
+            </div>
+
+                <div class="analysis-card">
+                    <div class="analysis-card-title">Cooldown</div>
+                    <div class="analysis-metric"><span>Cooldown Time</span><strong id="analysisCooldownTime">--</strong></div>
+                    <div class="analysis-metric"><span>HR Drop</span><strong id="analysisCooldownDrop">--</strong></div>
+                    <div class="analysis-metric"><span>Drop Rate</span><strong id="analysisCooldownRate">--</strong></div>
+                    <div class="analysis-metric"><span>Rest Efficiency</span><strong id="analysisRestEff">--</strong></div>
+                </div>
+            </div>
+
+        <div class="analysis-chart">
+            <canvas id="analysisChart"></canvas>
+        </div>
+    </section>
+
+    <div class="log-modal" id="logModal" aria-hidden="true">
+        <div class="log-panel" role="dialog" aria-modal="true" aria-label="Session log">
+            <div class="log-header">
+                <span>SESSION LOG</span>
+                <button class="log-close" id="logClose" type="button">X</button>
+            </div>
+            <div class="log-table">
+                <div class="head">Time</div>
+                <div class="head">Phase</div>
+                <div class="head">HR</div>
+            </div>
+            <div class="log-list" id="logList"></div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const $ = s => document.querySelector(s);
+            const root = document.documentElement;
+            const analysisEl = {
+                file: $('#analysisFile'),
+                sample: $('#analysisSample'),
+                status: $('#analysisStatus'),
+                score: $('#analysisScore'),
+                type: $('#analysisType'),
+                scoreCard: $('#analysisScoreCard'),
+                scoreDesc: $('#analysisScoreDesc'),
+                profileName: $('#analysisProfileName'),
+                profileMeta: $('#analysisProfileMeta'),
+                sessionType: $('#analysisSessionType'),
+                duration: $('#analysisDuration'),
+                avg: $('#analysisAvg'),
+                min: $('#analysisMin'),
+                max: $('#analysisMax'),
+                effort: $('#analysisEffort'),
+                peakCount: $('#analysisPeakCount'),
+                peakTime: $('#analysisPeakTime'),
+                peakLongest: $('#analysisPeakLongest'),
+                cooldownTime: $('#analysisCooldownTime'),
+                cooldownDrop: $('#analysisCooldownDrop'),
+                cooldownRate: $('#analysisCooldownRate'),
+                restEff: $('#analysisRestEff'),
+                zoneBars: {
+                    z1: $('#zone1Bar'),
+                    z2: $('#zone2Bar'),
+                    z3: $('#zone3Bar'),
+                    z4: $('#zone4Bar'),
+                    z5: $('#zone5Bar')
+                },
+                zoneVals: {
+                    z1: $('#zone1Val'),
+                    z2: $('#zone2Val'),
+                    z3: $('#zone3Val'),
+                    z4: $('#zone4Val'),
+                    z5: $('#zone5Val')
+                },
+                zoneLabels: {
+                    z1: $('#zone1Label'),
+                    z2: $('#zone2Label'),
+                    z3: $('#zone3Label'),
+                    z4: $('#zone4Label'),
+                    z5: $('#zone5Label')
+                },
+                zoneWraps: {
+                    z1: $('#zone1BarWrap'),
+                    z2: $('#zone2BarWrap'),
+                    z3: $('#zone3BarWrap'),
+                    z4: $('#zone4BarWrap'),
+                    z5: $('#zone5BarWrap')
+                },
+                chart: $('#analysisChart'),
+                color: $('#analysisColor'),
+                logToggle: $('#logToggle'),
+                logModal: $('#logModal'),
+                logClose: $('#logClose'),
+                logList: $('#logList'),
+                clear: $('#analysisClear')
+            };
+
+            const analysisState = {
+                lastSamples: null,
+                lastHrMax: null,
+                lastRows: null
+            };
+            const ANALYSIS_VERSION = 2;
+
+            const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+            function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+            function hexToRgb(hex) {
+                const h = (hex || '').trim().replace('#', '');
+                const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+                if (full.length !== 6) return null;
+                const n = parseInt(full, 16);
+                return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+            }
+
+            function rgbToHex({ r, g, b }) {
+                const to2 = v => Math.round(v).toString(16).padStart(2, '0');
+                return `#${to2(r)}${to2(g)}${to2(b)}`;
+            }
+
+            function rgbToHsl({ r, g, b }) {
+                r /= 255; g /= 255; b /= 255;
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                const d = max - min;
+                let h = 0;
+                let s = 0;
+                const l = (max + min) / 2;
+
+                if (d !== 0) {
+                    s = d / (1 - Math.abs(2 * l - 1));
+                    switch (max) {
+                        case r: h = ((g - b) / d) % 6; break;
+                        case g: h = (b - r) / d + 2; break;
+                        case b: h = (r - g) / d + 4; break;
+                    }
+                    h *= 60;
+                    if (h < 0) h += 360;
+                }
+
+                return { h, s, l };
+            }
+
+            function hslToRgb({ h, s, l }) {
+                const C = (1 - Math.abs(2 * l - 1)) * s;
+                const hp = (h % 360) / 60;
+                const X = C * (1 - Math.abs((hp % 2) - 1));
+                let r1 = 0, g1 = 0, b1 = 0;
+
+                if (0 <= hp && hp < 1) [r1, g1, b1] = [C, X, 0];
+                else if (1 <= hp && hp < 2) [r1, g1, b1] = [X, C, 0];
+                else if (2 <= hp && hp < 3) [r1, g1, b1] = [0, C, X];
+                else if (3 <= hp && hp < 4) [r1, g1, b1] = [0, X, C];
+                else if (4 <= hp && hp < 5) [r1, g1, b1] = [X, 0, C];
+                else if (5 <= hp && hp < 6) [r1, g1, b1] = [C, 0, X];
+
+                const m = l - C / 2;
+                return {
+                    r: (r1 + m) * 255,
+                    g: (g1 + m) * 255,
+                    b: (b1 + m) * 255,
+                };
+            }
+
+            function gradeAccent(hex) {
+                const rgb = hexToRgb(hex);
+                if (!rgb) return null;
+                const base = rgbToHsl(rgb);
+
+                const SHADOW_HUE = 235;
+                const HIGHLIGHT_HUE = 65;
+
+                const wrapHue = (h) => ((h % 360) + 360) % 360;
+
+                const hueDelta = (a, b) => {
+                    let d = wrapHue(b) - wrapHue(a);
+                    if (d > 180) d -= 360;
+                    if (d <= -180) d += 360;
+                    return d;
+                };
+
+                const hueLerp = (a, b, t) => wrapHue(a + hueDelta(a, b) * t);
+                const hueDist01 = (a, b) => Math.abs(hueDelta(a, b)) / 180;
+                const smoothstep01 = (t) => t * t * (3 - 2 * t);
+
+                const hueBump = (h, center, widthDeg) => {
+                    const d = Math.abs(hueDelta(h, center));
+                    let t = 1 - (d / widthDeg);
+                    t = clamp01(t);
+                    return smoothstep01(t);
+                };
+
+                const bumpRed = hueBump(base.h, 0, 42);
+                const bumpYellow = hueBump(base.h, 60, 55);
+                const bumpPink = hueBump(base.h, 320, 50);
+
+                const keepHue = 1 - (1 - bumpRed) * (1 - bumpYellow) * (1 - bumpPink);
+                const keepHighlight = 1 - (1 - bumpRed) * (1 - bumpPink);
+                const shadowPull = 1 - keepHue;
+
+                const dShadow = hueDist01(base.h, SHADOW_HUE);
+                const dHighlight = hueDist01(base.h, HIGHLIGHT_HUE);
+
+                const darkBend = clamp01(0.35 + 0.50 * dShadow);
+                const brightBend = clamp01(0.10 + 0.25 * dHighlight);
+
+                const dark = {
+                    h: hueLerp(base.h, SHADOW_HUE, darkBend * shadowPull),
+                    s: clamp01(base.s * 0.92),
+                    l: clamp01(base.l * 0.42)
+                };
+
+                const bright = {
+                    h: hueLerp(base.h, HIGHLIGHT_HUE, brightBend * (1 - keepHighlight)),
+                    s: clamp01(base.s * 1.05),
+                    l: clamp01(base.l + (1 - base.l) * 0.22)
+                };
+
+                const brightPure = {
+                    h: base.h,
+                    s: clamp01(base.s * 1.03),
+                    l: clamp01(base.l + (1 - base.l) * 0.30)
+                };
+
+                const surfaceHue = hueLerp(
+                    base.h,
+                    SHADOW_HUE,
+                    clamp01(0.55 + 0.30 * dShadow) * shadowPull
+                );
+
+                const bg = { h: surfaceHue, s: clamp01(base.s * 0.24), l: 0.08 };
+                const stage = { h: surfaceHue, s: clamp01(base.s * 0.28), l: 0.10 };
+                const card = { ...stage, l: 0.13 };
+                const panel = { ...stage, l: 0.12 };
+
+                return {
+                    accent: hex,
+                    accentDark: rgbToHex(hslToRgb(dark)),
+                    accentBright: rgbToHex(hslToRgb(bright)),
+                    accentBrightPure: rgbToHex(hslToRgb(brightPure)),
+                    bg: rgbToHex(hslToRgb(bg)),
+                    stageBg: rgbToHex(hslToRgb(stage)),
+                    card: rgbToHex(hslToRgb(card)),
+                    panel: rgbToHex(hslToRgb(panel)),
+                };
+            }
+
+            function mixHex(a, b, t) {
+                const ra = hexToRgb(a), rb = hexToRgb(b);
+                if (!ra || !rb) return a;
+                const lerp = (x, y) => x + (y - x) * t;
+                return rgbToHex({
+                    r: lerp(ra.r, rb.r),
+                    g: lerp(ra.g, rb.g),
+                    b: lerp(ra.b, rb.b)
+                });
+            }
+
+            function applyTheme(accentHex) {
+                const t = gradeAccent(accentHex);
+                if (!t) return;
+
+                root.style.setProperty('--theme-color', t.accent);
+                root.style.setProperty('--accent', t.accent);
+                root.style.setProperty('--accent-dark', t.accentDark);
+                root.style.setProperty('--accent-bright', t.accentBright);
+
+                root.style.setProperty('--bg', t.bg);
+                root.style.setProperty('--stage-bg', t.stageBg);
+                root.style.setProperty('--card', t.card);
+                root.style.setProperty('--panel', t.panel);
+
+                const outsideBg = mixHex(t.bg, '#000000', 0.45);
+                root.style.setProperty('--outside-bg', outsideBg);
+
+                root.style.setProperty('--chart-bg', outsideBg);
+                root.style.setProperty('--chart-line', t.accentBrightPure);
+                root.style.setProperty('--chart-grid', 'rgba(255,255,255,0.14)');
+            }
+
+            function loadProfile() {
+                try {
+                    const raw = localStorage.getItem('cardioanalysis:profile');
+                    return raw ? JSON.parse(raw) : null;
+                } catch {
+                    return null;
+                }
+            }
+
+            function formatProfile(profile) {
+                if (!profile) return null;
+                const name = profile.name || 'Fighter';
+                const age = profile.age ? `${profile.age}y` : '';
+                const sex = profile.sex ? profile.sex : '';
+                let height = '';
+                let weight = '';
+                if (profile.units === 'imperial') {
+                    const cm = parseFloat(profile.height_cm || '');
+                    const kg = parseFloat(profile.weight_kg || '');
+                    if (isFinite(cm)) {
+                        const totalIn = cm / 2.54;
+                        const ft = Math.floor(totalIn / 12);
+                        const inch = Math.round(totalIn - ft * 12);
+                        height = `${ft}ft ${inch}in`;
+                    }
+                    if (isFinite(kg)) {
+                        const lb = Math.round(kg * 2.2046226218);
+                        weight = `${lb}lb`;
+                    }
+                } else {
+                    if (profile.height_cm) height = `${profile.height_cm}cm`;
+                    if (profile.weight_kg) weight = `${profile.weight_kg}kg`;
+                }
+                const metaParts = [age, sex, height, weight].filter(Boolean);
+                return { name, meta: metaParts.join(' · ') };
+            }
+
+            function applyProfileBanner() {
+                const info = formatProfile(loadProfile());
+                if (!analysisEl.profileName || !analysisEl.profileMeta) return;
+                if (!info) {
+                    analysisEl.profileName.textContent = 'No profile loaded';
+                    analysisEl.profileMeta.textContent = 'Use Profile to set age, height, and weight.';
+                    if (analysisEl.sessionType) analysisEl.sessionType.textContent = '';
+                    return;
+                }
+                analysisEl.profileName.textContent = info.name;
+                analysisEl.profileMeta.textContent = info.meta || 'Profile loaded.';
+            }
+
+            function computeMaxHr(profile) {
+                const age = parseInt(profile?.age || '', 10);
+                if (!isFinite(age) || age <= 0) return null;
+                return Math.max(120, 220 - age);
+            }
+
+            function median(values) {
+                if (!values.length) return null;
+                const sorted = [...values].sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                if (sorted.length % 2) return sorted[mid];
+                return (sorted[mid - 1] + sorted[mid]) / 2;
+            }
+
+            function formatDuration(seconds) {
+                if (!isFinite(seconds)) return '--';
+                const total = Math.max(0, Math.round(seconds));
+                const mins = Math.floor(total / 60);
+                const secs = total % 60;
+                return `${mins}:${String(secs).padStart(2, '0')}`;
+            }
+
+            function setAnalysisStatus(text, isError = false) {
+                if (!analysisEl.status) return;
+                analysisEl.status.textContent = text;
+                analysisEl.status.classList.toggle('error', !!isError);
+            }
+
+            function parseCsv(text) {
+                const rawLines = text.split(/\r?\n/);
+                const meta = {};
+                const dataLines = [];
+                for (const line of rawLines) {
+                    const trimmed = line.trim();
+                    if (!trimmed) continue;
+                    if (trimmed.startsWith('#')) {
+                        const [key, value] = trimmed.slice(1).split('=');
+                        if (key) meta[key.trim()] = (value || '').trim();
+                    } else {
+                        dataLines.push(trimmed);
+                    }
+                }
+
+                if (dataLines.length < 2) return { samples: [], meta, rows: [] };
+                const header = dataLines[0].split(',').map(h => h.trim());
+                const idx = {
+                    time: header.indexOf('time_s'),
+                    phase: header.indexOf('phase'),
+                    hr: header.indexOf('hr_bpm'),
+                    round: header.indexOf('round')
+                };
+                if (idx.time === -1 || idx.phase === -1 || idx.hr === -1) return { samples: [], meta, rows: [] };
+                const samples = [];
+                const rows = [];
+                for (let i = 1; i < dataLines.length; i++) {
+                    const parts = dataLines[i].split(',');
+                    const t = parseFloat(parts[idx.time]);
+                    const hr = parseFloat(parts[idx.hr]);
+                    if (!isFinite(t) || !isFinite(hr)) continue;
+                    const phase = (parts[idx.phase] || '').trim();
+                    const roundRaw = idx.round >= 0 ? parts[idx.round] : '';
+                    const roundNum = roundRaw === '' ? null : parseInt(roundRaw, 10);
+                    samples.push({ t, hr, phase, round: Number.isFinite(roundNum) ? roundNum : null });
+                    rows.push({
+                        t,
+                        phase,
+                        hr
+                    });
+                }
+                return { samples, meta, rows };
+            }
+
+            function avgHrInWindow(samples, dtArr, start, end) {
+                let total = 0;
+                let dur = 0;
+                for (let i = 0; i < samples.length; i++) {
+                    const t = samples[i].t;
+                    if (t < start || t >= end) continue;
+                    const dt = dtArr[i] || 0;
+                    total += samples[i].hr * dt;
+                    dur += dt;
+                }
+                return dur > 0 ? total / dur : NaN;
+            }
+
+            function analyzeSamples(samples, meta) {
+                if (!samples.length) return null;
+                const sessionType = (meta.session_type || '').toLowerCase();
+                const times = samples.map(s => s.t);
+                const dtList = [];
+                for (let i = 0; i < times.length - 1; i++) {
+                    const dt = times[i + 1] - times[i];
+                    if (dt > 0 && dt < 10) dtList.push(dt);
+                }
+                const defaultDt = median(dtList) || 1;
+                const dtArr = samples.map((s, i) => {
+                    if (i < samples.length - 1) {
+                        const dt = times[i + 1] - times[i];
+                        if (dt > 0) return dt;
+                    }
+                    return defaultDt;
+                });
+
+                const restPrepHr = [];
+                let minHr = Infinity;
+                let maxHr = -Infinity;
+                samples.forEach(s => {
+                    if (!isFinite(s.hr)) return;
+                    if (s.hr < minHr) minHr = s.hr;
+                    if (s.hr > maxHr) maxHr = s.hr;
+                    const phase = (s.phase || '').toLowerCase();
+                    if (phase === 'rest' || phase === 'prep') restPrepHr.push(s.hr);
+                    if (phase === 'no_round' && sessionType === 'weight') restPrepHr.push(s.hr);
+                });
+                const baseline = median(restPrepHr) ?? median(samples.map(s => s.hr).filter(v => isFinite(v))) ?? 0;
+
+                const metaHr = parseInt(meta.max_hr || '', 10);
+                let profileMax = null;
+                try {
+                    const prof = loadProfile();
+                    const age = parseInt(prof?.age || '', 10);
+                    if (isFinite(age) && age > 0) profileMax = Math.max(120, 220 - age);
+                } catch {
+                    profileMax = null;
+                }
+                const hrMax = Math.max(
+                    isFinite(metaHr) ? metaHr : 0,
+                    isFinite(profileMax) ? profileMax : 0,
+                    maxHr || 0,
+                    120
+                );
+
+                const zoneTimes = { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0 };
+                const zoneWeights = { z1: 0.2, z2: 0.4, z3: 0.6, z4: 0.8, z5: 1.0 };
+                let totalTime = 0;
+                let weightedHr = 0;
+
+                let peakCount = 0;
+                let peakTime = 0;
+                let longestPeak = 0;
+
+                let workTime = 0;
+                const zoneTimesWork = { z1: 0, z2: 0, z3: 0, z4: 0, z5: 0 };
+                let weightedHrWork = 0;
+                let workLiftSum = 0;
+                let workAbove65Time = 0;
+                let restTime = 0;
+                let restHrSum = 0;
+                let workMaxHr = -Infinity;
+                const workSeries = [];
+
+                for (let i = 0; i < samples.length; i++) {
+                    const hr = samples[i].hr;
+                    const dt = dtArr[i];
+                    if (!isFinite(hr) || dt <= 0) continue;
+
+                    totalTime += dt;
+                    weightedHr += hr * dt;
+
+                    const pct = hr / hrMax;
+                    if (pct < 0.6) zoneTimes.z1 += dt;
+                    else if (pct < 0.7) zoneTimes.z2 += dt;
+                    else if (pct < 0.8) zoneTimes.z3 += dt;
+                    else if (pct < 0.9) zoneTimes.z4 += dt;
+                    else zoneTimes.z5 += dt;
+
+                    const phase = (samples[i].phase || '').toLowerCase();
+                    const isWork = phase === 'work';
+                    const isRest = phase === 'rest';
+                    if (isWork) {
+                        workTime += dt;
+                        weightedHrWork += hr * dt;
+                        workLiftSum += Math.max(0, hr - baseline) * dt;
+                        if (hr >= 0.65 * hrMax) workAbove65Time += dt;
+                        if (pct < 0.6) zoneTimesWork.z1 += dt;
+                        else if (pct < 0.7) zoneTimesWork.z2 += dt;
+                        else if (pct < 0.8) zoneTimesWork.z3 += dt;
+                        else if (pct < 0.9) zoneTimesWork.z4 += dt;
+                        else zoneTimesWork.z5 += dt;
+                    }
+                    if (isRest) {
+                        restTime += dt;
+                        restHrSum += hr * dt;
+                    }
+
+                    if (isWork) {
+                        if (hr > workMaxHr) workMaxHr = hr;
+                        workSeries.push({ hr, dt });
+                    }
+                }
+
+                const peakBaseSeries = workSeries.length ? workSeries : samples.map((s, i) => ({ hr: s.hr, dt: dtArr[i] }));
+                const peakBaseTime = workSeries.length ? workTime : totalTime;
+                const peakMax = workSeries.length ? workMaxHr : maxHr;
+                const peakWindow = Math.max(3, peakMax * 0.03);
+                let peakActive = 0;
+                for (const p of peakBaseSeries) {
+                    if (!isFinite(p.hr) || p.dt <= 0) continue;
+                    if (p.hr >= peakMax - peakWindow) {
+                        peakActive += p.dt;
+                    } else if (peakActive > 0) {
+                        peakCount++;
+                        peakTime += peakActive;
+                        longestPeak = Math.max(longestPeak, peakActive);
+                        peakActive = 0;
+                    }
+                }
+                if (peakActive > 0) {
+                    peakCount++;
+                    peakTime += peakActive;
+                    longestPeak = Math.max(longestPeak, peakActive);
+                }
+
+                const avgHr = totalTime > 0 ? weightedHr / totalTime : NaN;
+                const zoneBase = workTime > 0 ? workTime : totalTime;
+                const zoneSource = workTime > 0 ? zoneTimesWork : zoneTimes;
+                const zonePct = {
+                    z1: zoneBase > 0 ? zoneSource.z1 / zoneBase : 0,
+                    z2: zoneBase > 0 ? zoneSource.z2 / zoneBase : 0,
+                    z3: zoneBase > 0 ? zoneSource.z3 / zoneBase : 0,
+                    z4: zoneBase > 0 ? zoneSource.z4 / zoneBase : 0,
+                    z5: zoneBase > 0 ? zoneSource.z5 / zoneBase : 0
+                };
+
+                const weightedZoneTime = Object.keys(zoneSource)
+                    .reduce((acc, key) => acc + zoneSource[key] * zoneWeights[key], 0);
+                const effortZoneScore = zoneBase > 0 ? clamp((weightedZoneTime / zoneBase) * 100, 0, 100) : 0;
+                const workAvg = workTime > 0 ? weightedHrWork / workTime : NaN;
+                const workAvgPct = isFinite(workAvg) && hrMax > 0 ? clamp(workAvg / hrMax, 0, 1) : 0;
+                const effortScoreBase = clamp((effortZoneScore * 0.4) + (workAvgPct * 100 * 0.6), 0, 100);
+                const workLiftAvg = workTime > 0 ? workLiftSum / workTime : 0;
+                const liftNorm = (maxHr - baseline) > 0 ? workLiftAvg / (maxHr - baseline) : 0;
+                const above65Ratio = workTime > 0 ? workAbove65Time / workTime : 0;
+                const liftScore = clamp(liftNorm / 0.20, 0, 1);
+                const aboveScore = clamp(above65Ratio / 0.25, 0, 1);
+                const weightEffort = clamp(((0.6 * liftScore) + (0.4 * aboveScore)) * 100, 0, 100);
+                const effortScore = sessionType === 'weight' ? weightEffort : effortScoreBase;
+
+                const peakRatio = peakBaseTime > 0 ? peakTime / peakBaseTime : 0;
+                const peakHeightScore = hrMax > 0 ? clamp((peakMax / hrMax) * 100, 0, 100) : 0;
+                const peakTimeScore = clamp((peakRatio / 0.15) * 100, 0, 100);
+                const peakScore = clamp((peakHeightScore * 0.6) + (peakTimeScore * 0.4), 0, 100);
+
+                const cooldownIdx = samples.findIndex(s => (s.phase || '').toLowerCase() === 'cooldown');
+                let cooldownDuration = 0;
+                let cooldownDrop = NaN;
+                let cooldownRate = NaN;
+                let cooldownPresent = false;
+
+                if (cooldownIdx >= 0) {
+                    cooldownPresent = true;
+                    for (let i = cooldownIdx; i < samples.length; i++) {
+                        cooldownDuration += dtArr[i];
+                    }
+                    const cooldownStart = samples[cooldownIdx].t;
+                    const cooldownEnd = samples[samples.length - 1].t + dtArr[samples.length - 1];
+                    const preAvg = avgHrInWindow(samples, dtArr, cooldownStart - 60, cooldownStart);
+                    const tailStart = Math.max(cooldownStart, cooldownEnd - 60);
+                    const tailAvg = avgHrInWindow(samples, dtArr, tailStart, cooldownEnd);
+                    if (isFinite(preAvg) && isFinite(tailAvg)) {
+                        cooldownDrop = preAvg - tailAvg;
+                        const cooldownMinutes = Math.max(cooldownDuration / 60, 0.5);
+                        cooldownRate = cooldownDrop / cooldownMinutes;
+                    }
+                }
+
+                const restAvg = restTime > 0 ? restHrSum / restTime : NaN;
+                const restDrop = (isFinite(workAvg) && isFinite(restAvg)) ? Math.max(0, workAvg - restAvg) : 0;
+                const restEffComponent = (isFinite(restAvg) && (maxHr - baseline) > 0 && restTime > 0)
+                    ? clamp((restDrop / (maxHr - baseline)) / 0.25 * 100, 0, 100)
+                    : null;
+                let cooldownEffComponent = null;
+                if (cooldownPresent && (maxHr - baseline) > 0) {
+                    if (isFinite(cooldownDrop)) {
+                        cooldownEffComponent = clamp((cooldownDrop / (maxHr - baseline)) / 0.3 * 100, 0, 100);
+                    } else if (isFinite(cooldownRate)) {
+                        cooldownEffComponent = clamp((cooldownRate / 20) * 100, 0, 100);
+                    }
+                }
+                let restEffScore = null;
+                if (restEffComponent != null && cooldownEffComponent != null) {
+                    restEffScore = (restEffComponent * 0.6) + (cooldownEffComponent * 0.4);
+                } else if (restEffComponent != null) {
+                    restEffScore = restEffComponent;
+                } else if (cooldownEffComponent != null) {
+                    restEffScore = cooldownEffComponent;
+                }
+
+                const workSeriesOnly = workSeries.length ? workSeries : samples.map((s, i) => ({ hr: s.hr, dt: dtArr[i] }));
+                const workCount = workSeriesOnly.length;
+                const quarter = Math.max(1, Math.floor(workCount * 0.25));
+                let firstSum = 0, firstTime = 0, lastSum = 0, lastTime = 0;
+                for (let i = 0; i < workCount; i++) {
+                    const p = workSeriesOnly[i];
+                    if (!isFinite(p.hr) || p.dt <= 0) continue;
+                    if (i < quarter) { firstSum += p.hr * p.dt; firstTime += p.dt; }
+                    if (i >= workCount - quarter) { lastSum += p.hr * p.dt; lastTime += p.dt; }
+                }
+                const firstAvg = firstTime > 0 ? firstSum / firstTime : NaN;
+                const lastAvg = lastTime > 0 ? lastSum / lastTime : NaN;
+                const progRatio = (isFinite(firstAvg) && isFinite(lastAvg) && (hrMax - baseline) > 0)
+                    ? clamp((lastAvg - firstAvg) / (hrMax - baseline), 0, 1)
+                    : 0;
+                const progressionBonus = sessionType === 'weight' ? 0 : (progRatio * 8);
+                let roundBonus = 0;
+                if (sessionType !== 'weight') {
+                    const roundSet = new Set();
+                    for (const s of samples) {
+                        if (typeof s.round === 'number') roundSet.add(s.round);
+                    }
+                    const roundCount = roundSet.size;
+                    const roundsNorm = clamp(roundCount / 10, 0, 1);
+                    const intensityNorm = clamp((workAvgPct - 0.65) / 0.2, 0, 1);
+                    roundBonus = 8 * roundsNorm * intensityNorm;
+                }
+                const durationMinutes = workTime / 60;
+                const durationNorm = clamp(durationMinutes / 25, 0, 1);
+                const durationIntensityBonus = sessionType === 'weight' ? 0 : (10 * durationNorm * clamp((workAvgPct - 0.6) / 0.25, 0, 1));
+
+                const scoreParts = [];
+                scoreParts.push({ value: clamp(effortScore + progressionBonus + roundBonus + durationIntensityBonus, 0, 100), weight: 0.5 });
+                scoreParts.push({ value: peakScore, weight: 0.1 });
+                if (restEffScore != null) scoreParts.push({ value: restEffScore, weight: 0.3 });
+                const weightSum = scoreParts.reduce((acc, p) => acc + p.weight, 0) || 1;
+                const totalScore = clamp(scoreParts.reduce((acc, p) => acc + p.value * p.weight, 0) / weightSum, 0, 100);
+
+                const highIntensity = zonePct.z4 + zonePct.z5;
+                const trainingType = (peakRatio > 0.12 && peakCount >= 3 && effortScore > 70)
+                    ? 'High-Intensity Intervals'
+                    : (highIntensity > 0.35 && totalTime > 1200)
+                        ? 'Threshold / Hard Tempo'
+                        : (zonePct.z2 > 0.45 && highIntensity < 0.15)
+                            ? 'Aerobic Base / Recovery'
+                            : (zonePct.z3 > 0.25 && highIntensity > 0.15)
+                                ? 'Mixed / Combat'
+                                : 'Steady Endurance';
+
+                return {
+                    totalTime,
+                    avgHr,
+                    minHr,
+                    maxHr,
+                    zonePct,
+                    effortScore,
+                    peakCount,
+                    peakTime,
+                    longestPeak,
+                    peakScore,
+                    cooldownPresent,
+                    cooldownDuration,
+                    cooldownDrop,
+                    cooldownRate,
+                    restEffScore,
+                    totalScore,
+                    trainingType,
+                    hrMax,
+                    dtArr,
+                    sessionType,
+                    version: ANALYSIS_VERSION
+                };
+            }
+
+            function drawAnalysisChart(samples, hrMax) {
+                if (!analysisEl.chart || !samples?.length || samples.length < 2) return;
+                const rect = analysisEl.chart.getBoundingClientRect();
+                const scale = window.devicePixelRatio || 1;
+                const width = Math.max(1, Math.floor(rect.width * scale));
+                const height = Math.max(1, Math.floor(rect.height * scale));
+                analysisEl.chart.width = width;
+                analysisEl.chart.height = height;
+
+                const ctx = analysisEl.chart.getContext('2d');
+                ctx.clearRect(0, 0, width, height);
+                const cs = getComputedStyle(root);
+                const chartBg = (cs.getPropertyValue('--chart-bg') || '').trim() || '#0c0f18';
+                const chartGrid = (cs.getPropertyValue('--chart-grid') || '').trim() || 'rgba(255,255,255,0.1)';
+                const chartLine = (cs.getPropertyValue('--chart-line') || '').trim() || '#56a0ff';
+                ctx.fillStyle = chartBg;
+                ctx.fillRect(0, 0, width, height);
+
+                const accentHex = (cs.getPropertyValue('--accent') || '').trim() || '#56a0ff';
+                const accentRgb = hexToRgb(accentHex) || { r: 86, g: 160, b: 255 };
+                const roundTint = `rgba(${accentRgb.r}, ${accentRgb.g}, ${accentRgb.b}, 0.10)`;
+
+                const hrValues = samples.map(s => s.hr).filter(v => isFinite(v));
+                const vMin = Math.min(...hrValues);
+                const vMax = Math.max(...hrValues);
+                const hrLow = Math.max(30, Math.floor(vMin - 5));
+                const hrHigh = Math.min(hrMax, Math.ceil(vMax + 5));
+                const range = Math.max(1, hrHigh - hrLow);
+
+                const padLeft = 28 * scale;
+                const padRight = 10 * scale;
+                const padTop = 10 * scale;
+                const padBottom = 18 * scale;
+                const plotW = width - padLeft - padRight;
+                const plotH = height - padTop - padBottom;
+
+                const windowStart = samples[0].t;
+                const windowEnd = samples[samples.length - 1].t;
+                const windowSpan = Math.max(1e-6, windowEnd - windowStart);
+                const workSegs = collectWorkSegments(samples);
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(padLeft, padTop, plotW, plotH);
+                ctx.clip();
+
+                for (const seg of workSegs) {
+                    const a = Math.max(windowStart, seg.start);
+                    const b = Math.min(windowEnd, seg.end);
+                    if (b <= a) continue;
+                    const x1 = padLeft + ((a - windowStart) / windowSpan) * plotW;
+                    const x2 = padLeft + ((b - windowStart) / windowSpan) * plotW;
+                    const w = Math.max(0, x2 - x1);
+                    ctx.fillStyle = roundTint;
+                    ctx.fillRect(x1, padTop, w, plotH);
+
+                    if (w >= 44 && seg.round != null) {
+                        ctx.font = `${9 * scale}px system-ui`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'top';
+                        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+                        ctx.fillText(`ROUND ${seg.round + 1}`, x1 + w / 2, padTop + 2 * scale);
+                    }
+                }
+
+                ctx.restore();
+
+                ctx.strokeStyle = chartGrid;
+                ctx.lineWidth = 1 * scale;
+                ctx.beginPath();
+                for (let i = 0; i <= 4; i++) {
+                    const y = padTop + (plotH * i / 4);
+                    ctx.moveTo(padLeft, y);
+                    ctx.lineTo(width - padRight, y);
+                }
+                ctx.stroke();
+
+                ctx.strokeStyle = chartLine;
+                ctx.lineWidth = 2 * scale;
+                ctx.beginPath();
+                samples.forEach((s, i) => {
+                    const x = padLeft + (plotW * i / (samples.length - 1));
+                    const y = padTop + (1 - ((s.hr - hrLow) / range)) * plotH;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+
+                ctx.fillStyle = chartGrid;
+                ctx.font = `${10 * scale}px Poppins, system-ui, sans-serif`;
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                for (let i = 0; i <= 4; i++) {
+                    const value = Math.round(hrHigh - (range * i / 4));
+                    const y = padTop + (plotH * i / 4);
+                    ctx.fillText(value.toString(), padLeft - 6 * scale, y);
+                }
+
+                const totalSeconds = Math.max(1, Math.round(samples.length));
+                const tickCount = 4;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                for (let i = 0; i <= tickCount; i++) {
+                    const tSec = Math.round((totalSeconds * i) / tickCount);
+                    const x = padLeft + (plotW * i / tickCount);
+                    ctx.fillText(formatDuration(tSec), x, padTop + plotH + 4 * scale);
+                }
+            }
+
+            function collectWorkSegments(samples) {
+                const segs = [];
+                let cur = null;
+
+                for (let i = 0; i < samples.length; i++) {
+                    const s = samples[i];
+                    const t = s?.t;
+                    if (typeof t !== 'number') continue;
+                    const isWork = ((s.phase || '').toLowerCase() === 'work');
+
+                    if (isWork) {
+                        if (!cur) {
+                            cur = {
+                                start: t,
+                                end: t,
+                                round: (typeof s.round === 'number') ? s.round : null
+                            };
+                        }
+                        cur.end = t;
+                    } else if (cur) {
+                        cur.end = t;
+                        segs.push(cur);
+                        cur = null;
+                    }
+                }
+
+                if (cur) {
+                    const lastT = samples[samples.length - 1]?.t;
+                    cur.end = (typeof lastT === 'number') ? lastT : cur.end;
+                    segs.push(cur);
+                }
+
+                return segs;
+            }
+
+            function fmtLogTime(sec) {
+                const total = Math.max(0, Math.round(sec));
+                const m = Math.floor(total / 60);
+                const s = total % 60;
+                return `${m}:${String(s).padStart(2, '0')}`;
+            }
+
+            function renderLog() {
+                if (!analysisEl.logList) return;
+                analysisEl.logList.innerHTML = '';
+                const rows = analysisState.lastRows || [];
+                if (!rows.length) {
+                    const empty = document.createElement('div');
+                    empty.textContent = 'No data loaded.';
+                    empty.style.color = 'var(--muted)';
+                    empty.style.fontSize = '10px';
+                    analysisEl.logList.appendChild(empty);
+                    return;
+                }
+                rows.forEach(s => {
+                    const row = document.createElement('div');
+                    row.className = 'log-table';
+                    const t = document.createElement('div');
+                    t.textContent = fmtLogTime(s.t);
+                    const r = document.createElement('div');
+                    r.textContent = s.phase || '--';
+                    const h = document.createElement('div');
+                    h.textContent = s.hr;
+                    row.appendChild(t);
+                    row.appendChild(r);
+                    row.appendChild(h);
+                    analysisEl.logList.appendChild(row);
+                });
+            }
+
+            function openLog() {
+                if (!analysisEl.logModal) return;
+                renderLog();
+                analysisEl.logModal.classList.add('open');
+                analysisEl.logModal.setAttribute('aria-hidden', 'false');
+            }
+
+            function closeLog() {
+                if (!analysisEl.logModal) return;
+                analysisEl.logModal.classList.remove('open');
+                analysisEl.logModal.setAttribute('aria-hidden', 'true');
+            }
+
+            function updateAnalysisUI(samples, results, fileName, remember = true, meta = {}) {
+                if (!results) return;
+                const formatPct = (value) => `${Math.round(value * 100)}%`;
+                analysisEl.duration.textContent = formatDuration(results.totalTime);
+                analysisEl.avg.textContent = isFinite(results.avgHr) ? `${Math.round(results.avgHr)} bpm` : '--';
+                analysisEl.min.textContent = isFinite(results.minHr) ? `${Math.round(results.minHr)} bpm` : '--';
+                analysisEl.max.textContent = isFinite(results.maxHr) ? `${Math.round(results.maxHr)} bpm` : '--';
+                analysisEl.effort.textContent = `${Math.round(results.effortScore)}/100`;
+
+                const roundedScore = isFinite(results.totalScore) ? Math.round(results.totalScore) : null;
+                analysisEl.score.textContent = roundedScore != null ? roundedScore.toString() : '--';
+                analysisEl.type.textContent = results.trainingType;
+                if (analysisEl.scoreDesc) {
+                    let desc = '---';
+                    if (roundedScore != null) {
+                        if (roundedScore >= 85) desc = 'High output';
+                        else if (roundedScore >= 65) desc = 'Above baseline';
+                        else desc = 'Recovery-focused';
+                    }
+                    analysisEl.scoreDesc.textContent = desc;
+                }
+                if (analysisEl.scoreCard) {
+                    let band = '#2f80ff';
+                    if (results.trainingType === 'Threshold / Hard Tempo') {
+                        band = '#ff9a3d';
+                    } else if (results.trainingType === 'High-Intensity Intervals' || results.trainingType === 'Mixed / Combat') {
+                        band = '#ff4d4d';
+                    } else if (results.trainingType === 'Aerobic Base / Recovery' || results.trainingType === 'Steady Endurance') {
+                        band = '#2f80ff';
+                    }
+                    analysisEl.scoreCard.style.setProperty('--score-band', band);
+                }
+
+                const zones = results.zonePct;
+                analysisEl.zoneBars.z1.style.width = `${zones.z1 * 100}%`;
+                analysisEl.zoneBars.z2.style.width = `${zones.z2 * 100}%`;
+                analysisEl.zoneBars.z3.style.width = `${zones.z3 * 100}%`;
+                analysisEl.zoneBars.z4.style.width = `${zones.z4 * 100}%`;
+                analysisEl.zoneBars.z5.style.width = `${zones.z5 * 100}%`;
+
+                analysisEl.zoneVals.z1.textContent = formatPct(zones.z1);
+                analysisEl.zoneVals.z2.textContent = formatPct(zones.z2);
+                analysisEl.zoneVals.z3.textContent = formatPct(zones.z3);
+                analysisEl.zoneVals.z4.textContent = formatPct(zones.z4);
+                analysisEl.zoneVals.z5.textContent = formatPct(zones.z5);
+
+                analysisEl.peakCount.textContent = results.peakCount.toString();
+                analysisEl.peakTime.textContent = formatDuration(results.peakTime);
+                analysisEl.peakLongest.textContent = formatDuration(results.longestPeak);
+
+                if (results.cooldownPresent) {
+                    analysisEl.cooldownTime.textContent = formatDuration(results.cooldownDuration);
+                    analysisEl.cooldownDrop.textContent = isFinite(results.cooldownDrop)
+                        ? `${Math.round(results.cooldownDrop)} bpm`
+                        : '--';
+                    analysisEl.cooldownRate.textContent = isFinite(results.cooldownRate)
+                        ? `${Math.round(results.cooldownRate)} bpm/min`
+                        : '--';
+                } else {
+                    analysisEl.cooldownTime.textContent = 'None';
+                    analysisEl.cooldownDrop.textContent = '--';
+                    analysisEl.cooldownRate.textContent = '--';
+                }
+                if (analysisEl.restEff) {
+                    analysisEl.restEff.textContent = results.restEffScore != null
+                        ? `${Math.round(results.restEffScore)}/100`
+                        : '--';
+                }
+
+                const hiPct = Math.round((zones.z4 + zones.z5) * 100);
+                if (analysisEl.sessionType) {
+                    const sessionType = meta.session_type || results.sessionType || '';
+                    analysisEl.sessionType.textContent = sessionType ? `Session: ${sessionType}` : '';
+                }
+
+                const hrMaxValue = results.hrMax || 0;
+                const zoneRanges = {
+                    z1: `Below ${Math.round(hrMaxValue * 0.6)} bpm`,
+                    z2: `${Math.round(hrMaxValue * 0.6)}-${Math.round(hrMaxValue * 0.7)} bpm`,
+                    z3: `${Math.round(hrMaxValue * 0.7)}-${Math.round(hrMaxValue * 0.8)} bpm`,
+                    z4: `${Math.round(hrMaxValue * 0.8)}-${Math.round(hrMaxValue * 0.9)} bpm`,
+                    z5: `Above ${Math.round(hrMaxValue * 0.9)} bpm`
+                };
+                Object.keys(zoneRanges).forEach(key => {
+                    if (analysisEl.zoneLabels[key]) analysisEl.zoneLabels[key].title = zoneRanges[key];
+                    if (analysisEl.zoneWraps[key]) analysisEl.zoneWraps[key].title = zoneRanges[key];
+                });
+
+                analysisState.lastSamples = samples;
+                analysisState.lastHrMax = results.hrMax;
+
+                drawAnalysisChart(samples, results.hrMax);
+                setAnalysisStatus(`Loaded ${fileName} • ${samples.length} samples`, false);
+                if (remember) rememberAnalysis(fileName, results, samples, meta);
+            }
+
+            function loadRecentCsvList() {
+                const raw = localStorage.getItem('cardioanalysis:recent_csvs');
+                let list = [];
+                try {
+                    list = raw ? JSON.parse(raw) : [];
+                } catch {
+                    list = [];
+                }
+                if (!Array.isArray(list)) list = [];
+                analysisEl.sample.innerHTML = '<option value="">Load recent CSV...</option>';
+                list.forEach((name) => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    analysisEl.sample.appendChild(opt);
+                });
+            }
+
+            function rememberCsv(name) {
+                if (!name) return;
+                const raw = localStorage.getItem('cardioanalysis:recent_csvs');
+                let list = [];
+                try {
+                    list = raw ? JSON.parse(raw) : [];
+                } catch {
+                    list = [];
+                }
+                if (!Array.isArray(list)) list = [];
+                const next = [name, ...list.filter(item => item !== name)].slice(0, 8);
+                localStorage.setItem('cardioanalysis:recent_csvs', JSON.stringify(next));
+                loadRecentCsvList();
+                analysisEl.sample.value = name;
+            }
+
+            function downsample(samples, maxPoints = 300) {
+                if (!samples.length) return [];
+                if (samples.length <= maxPoints) {
+                    return samples.map(s => ({
+                        t: s.t,
+                        hr: s.hr,
+                        phase: s.phase,
+                        round: s.round
+                    }));
+                }
+                const step = samples.length / maxPoints;
+                const reduced = [];
+                for (let i = 0; i < maxPoints; i++) {
+                    const idx = Math.floor(i * step);
+                    const s = samples[idx];
+                    reduced.push({
+                        t: s.t,
+                        hr: s.hr,
+                        phase: s.phase,
+                        round: s.round
+                    });
+                }
+                return reduced;
+            }
+
+            function loadSavedAnalyses() {
+                const raw = localStorage.getItem('cardioanalysis:saved_analyses');
+                let list = [];
+                try {
+                    list = raw ? JSON.parse(raw) : [];
+                } catch {
+                    list = [];
+                }
+                return Array.isArray(list) ? list : [];
+            }
+
+            function saveAnalyses(list) {
+                localStorage.setItem('cardioanalysis:saved_analyses', JSON.stringify(list));
+            }
+
+            function rememberAnalysis(name, results, samples, meta = {}) {
+                if (!name || !results) return;
+                const list = loadSavedAnalyses();
+                const compact = {
+                    name,
+                    savedAt: Date.now(),
+                    results: {
+                        totalTime: results.totalTime,
+                        avgHr: results.avgHr,
+                        minHr: results.minHr,
+                        maxHr: results.maxHr,
+                        zonePct: results.zonePct,
+                        effortScore: results.effortScore,
+                        peakCount: results.peakCount,
+                        peakTime: results.peakTime,
+                        longestPeak: results.longestPeak,
+                        cooldownPresent: results.cooldownPresent,
+                        cooldownDuration: results.cooldownDuration,
+                        cooldownDrop: results.cooldownDrop,
+                        cooldownRate: results.cooldownRate,
+                        totalScore: results.totalScore,
+                        trainingType: results.trainingType,
+                        hrMax: results.hrMax,
+                        sessionType: meta.session_type || '',
+                        version: results.version || ANALYSIS_VERSION
+                    },
+                    chart: downsample(samples),
+                    rows: analysisState.lastRows || []
+                };
+                const next = [compact, ...list.filter(item => item.name !== name)].slice(0, 8);
+                saveAnalyses(next);
+                rememberCsv(name);
+            }
+
+            function loadRememberedAnalysis(name) {
+                const list = loadSavedAnalyses();
+                const entry = list.find(item => item.name === name);
+                if (!entry) return false;
+                if ((entry.results?.version || 0) !== ANALYSIS_VERSION) {
+                    setAnalysisStatus('Saved summary is outdated. Reload the CSV to refresh scores.', true);
+                    return false;
+                }
+                const chartSamples = (entry.chart || []).map(s => ({
+                    t: s.t,
+                    hr: s.hr,
+                    phase: s.phase,
+                    round: s.round
+                }));
+                const results = entry.results || null;
+                if (!results) return false;
+                analysisState.lastRows = entry.rows || null;
+                updateAnalysisUI(chartSamples, results, name, false, { session_type: results.sessionType });
+                setAnalysisStatus(`Loaded saved summary • ${name}`, false);
+                return true;
+            }
+
+            function handleCsvText(fileName, text) {
+                const parsed = parseCsv(text);
+                if (!parsed.samples.length) {
+                    setAnalysisStatus('Could not read CSV. Expecting columns: time_s, phase, round, time_left_s, hr_bpm.', true);
+                    return;
+                }
+                const results = analyzeSamples(parsed.samples, parsed.meta || {});
+                if (!results) {
+                    setAnalysisStatus('No valid heart rate data found in CSV.', true);
+                    return;
+                }
+                analysisState.lastRows = parsed.rows || [];
+                updateAnalysisUI(parsed.samples, results, fileName, true, parsed.meta || {});
+            }
+
+            if (analysisEl.file) {
+                analysisEl.file.addEventListener('change', (event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => handleCsvText(file.name, reader.result);
+                    reader.onerror = () => setAnalysisStatus('Failed to read file.', true);
+                    reader.readAsText(file);
+                });
+            }
+
+            if (analysisEl.sample) {
+                analysisEl.sample.addEventListener('change', () => {
+                    const fileName = analysisEl.sample?.value;
+                    if (!fileName) return;
+                    if (loadRememberedAnalysis(fileName)) return;
+                    fetch(encodeURI(fileName))
+                        .then(r => {
+                            if (!r.ok) throw new Error('Load failed');
+                            return r.text();
+                        })
+                        .then(text => handleCsvText(fileName, text))
+                        .catch(() => setAnalysisStatus('Could not load sample CSV. Use the file picker instead.', true));
+                });
+            }
+
+            if (analysisEl.color) {
+                const storedAccent = localStorage.getItem('cardioanalysis:accent');
+                if (storedAccent) {
+                    analysisEl.color.value = storedAccent;
+                }
+                applyTheme(analysisEl.color.value);
+
+                analysisEl.color.addEventListener('input', (event) => {
+                    const value = event.target.value;
+                    applyTheme(value);
+                    localStorage.setItem('cardioanalysis:accent', value);
+                    if (analysisState.lastSamples) {
+                        drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax);
+                    }
+                });
+
+                analysisEl.color.addEventListener('change', (event) => {
+                    const value = event.target.value;
+                    applyTheme(value);
+                    localStorage.setItem('cardioanalysis:accent', value);
+                    if (analysisState.lastSamples) {
+                        drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax);
+                    }
+                });
+            } else {
+                const storedAccent = localStorage.getItem('cardioanalysis:accent');
+                if (storedAccent) applyTheme(storedAccent);
+            }
+
+            applyProfileBanner();
+            window.addEventListener('storage', (event) => {
+                if (event.key === 'cardioanalysis:profile') {
+                    applyProfileBanner();
+                }
+            });
+
+            if (analysisEl.logToggle) analysisEl.logToggle.addEventListener('click', openLog);
+            if (analysisEl.logClose) analysisEl.logClose.addEventListener('click', closeLog);
+            if (analysisEl.logModal) {
+                analysisEl.logModal.addEventListener('mousedown', (e) => {
+                    const panel = analysisEl.logModal.querySelector('.log-panel');
+                    if (panel && !panel.contains(e.target)) closeLog();
+                });
+            }
+
+            if (analysisEl.clear) {
+                analysisEl.clear.addEventListener('change', () => {
+                    const value = analysisEl.clear.value;
+                    if (!value) return;
+                    const confirmText = value === 'saved'
+                        ? 'Clear saved summaries?'
+                        : value === 'recent'
+                            ? 'Clear recent list?'
+                            : 'Clear saved summaries and recent list?';
+                    if (!confirm(confirmText)) {
+                        analysisEl.clear.value = '';
+                        return;
+                    }
+                    if (value === 'saved' || value === 'all') {
+                        localStorage.removeItem('cardioanalysis:saved_analyses');
+                    }
+                    if (value === 'recent' || value === 'all') {
+                        localStorage.removeItem('cardioanalysis:recent_csvs');
+                    }
+                    analysisEl.clear.value = '';
+                    loadRecentCsvList();
+                    analysisState.lastRows = null;
+                    setAnalysisStatus('Cleared saved data.', false);
+                });
+            }
+
+            loadRecentCsvList();
+            const savedList = loadSavedAnalyses().map(item => item.name);
+            if (savedList.length) {
+                analysisEl.sample.value = '';
+            }
+
+            window.addEventListener('resize', () => {
+                if (analysisState.lastSamples) {
+                    drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,3461 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+
+    <!-- =========================================================
+         VIEWPORT / META
+    ========================================================== -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Muay Thai Timer</title>
+
+
+    <!-- =========================================================
+         STYLES
+    ========================================================== -->
+    <style>
+
+        /* ===== GBA SCREEN ===== */
+        .pixel-stage {
+            width: 480px;
+            height: 320px;
+            background: var(--stage-bg);
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            position: relative;
+            border: 0; /* IMPORTANT */
+            box-shadow: 0 0 0 6px #000 inset; /* border drawn INSIDE */
+            overflow: visible;
+            isolation: isolate;
+        }
+
+            /* Clip the HUD/UI inside the GBA screen, while letting the stage glow outside */
+            .pixel-stage .ui {
+                width: 100%;
+                height: 100%;
+                overflow: hidden; /* moved clipping here */
+                position: relative;
+            }
+
+            /* OUTER GLOW LAYER (lives outside the clipped UI) */
+            .pixel-stage::after {
+                content: "";
+                position: absolute;
+                inset: 0; /* SAME SIZE as the GBA window */
+                pointer-events: none;
+                opacity: 0;
+                border-radius: 0; /* MATCH the GBA window shape (no extra rounded frame) */
+                z-index: -1; /* keep glow behind the GBA window */
+            }
+
+
+            /* Animate the pseudo-element, NOT the stage itself (so inset border stays intact) */
+            .pixel-stage.glow-pulse::after {
+                opacity: 1;
+                animation: pulseGlow 5s infinite ease-in-out;
+            }
+
+
+
+
+
+        .ui {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+            /* =========================
+           THEME / TOKENS
+        ========================== */
+            :root {
+                /* Base input accent (your palette blue) */
+                --theme-color: #0868c0;
+
+                /* Derived tokens (computed by JS; these are safe fallbacks) */
+                --accent: var(--theme-color);
+                --accent-dark: color-mix(in srgb, var(--accent) 65%, black);
+                --accent-bright: color-mix(in srgb, var(--accent) 75%, white);
+
+                /* Surfaces (computed by JS) */
+                --bg: #0b0f18;
+                /* Outside the GBA window (darker than in-stage) */
+                --outside-bg: color-mix(in srgb, var(--bg) 55%, #000);
+                --stage-bg: #0e111a;
+                --card: #141827;
+                --panel: #12162a;
+
+                /* Chart colors (computed by JS) */
+                --chart-bg: #0b0f18;
+                --chart-grid: rgba(255,255,255,0.12);
+                --chart-line: var(--accent-bright);
+
+                /* Text */
+                --text: #f8f8f8;
+                --muted: #a0a0ad;
+
+                /* Phase colors (computed by JS to match graded accent) */
+                --work: var(--accent);
+                --rest: color-mix(in srgb, var(--accent) 40%, grey);
+                --prep: color-mix(in srgb, var(--accent) 20%, grey);
+                --round: var(--accent);
+
+                /* text scale controls (effective values, overridden by JS) */
+                --phase-scale: 1;
+                --clock-scale: 1;
+                --round-scale: 1;
+                --next-scale: 1;
+                --hr-scale: 1;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            /* =========================
+           PAGE LAYOUT
+        ========================== */
+            body {
+                margin: 0;
+                /* Outside the GBA window: go darker than the in-stage vibe */
+                background: var(--outside-bg);
+                color: var(--text);
+                font-family: 'Poppins', system-ui, sans-serif;
+                min-height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                padding: 4px;
+            }
+
+            .app {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 16px;
+                background: var(--card);
+                padding: clamp(16px, 3vmin, 32px);
+                border-radius: 20px;
+                box-shadow: 0 0 40px color-mix(in srgb, var(--accent) 30%, black);
+                border: 1px solid var(--accent);
+                transition: box-shadow 0.6s ease;
+                width: min(95vw, 1200px);
+                max-width: 100%;
+            }
+
+            /* =========================
+           TIMER RING / SVG
+        ========================== */
+            .ring {
+                width: min(78vmin, 520px);
+                aspect-ratio: 1 / 1;
+                position: relative;
+                overflow: hidden; /* <<< don't draw outside your ring box */
+            }
+
+
+            svg {
+                width: 100%;
+                height: 100%;
+                overflow: hidden; /* <<< no outside drawing */
+            }
+
+
+            .center {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                padding: 0 8px;
+            }
+
+            .phase {
+                font-size: calc(var(--phase-scale) * 1.3rem);
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                font-weight: 700;
+                margin-bottom: 4px;
+                color: var(--accent);
+            }
+
+            .big {
+                font-size: calc(var(--clock-scale) * 3.6rem);
+                font-weight: 800;
+                letter-spacing: 1px;
+                line-height: 1.1;
+            }
+
+            .small {
+                font-size: 0.9rem;
+                color: var(--muted);
+                margin-top: 2px;
+            }
+
+            #roundInfo {
+                font-size: calc(var(--round-scale) * 0.9rem);
+            }
+
+            #nextInfo {
+                font-size: calc(var(--next-scale) * 0.9rem);
+            }
+
+            /* =========================
+           HR INSIDE RETICLE
+        ========================== */
+            .hr-reticle {
+                display: flex;
+                align-items: center;
+                justify-content: center; /* center heart + number together */
+                gap: 2px;
+                margin-top: 6px;
+                font-size: calc(var(--hr-scale) * 1rem);
+            }
+
+
+            .hr-heart {
+                font-size: 1.1em;
+                color: var(--accent);
+                transform-origin: center;
+                will-change: transform;
+            }
+
+
+            .hr-reticle-value {
+                font-variant-numeric: tabular-nums;
+                width: 2ch; /* tighter default for 2-digit HR */
+                min-width: 2ch;
+                text-align: center; /* keeps heart+number centered as a group */
+                font-size: 1.45em;
+                font-weight: 800;
+                line-height: 1;
+            }
+
+            .hr-reticle[data-digits="3"] .hr-reticle-value {
+                width: 3ch;
+                min-width: 3ch;
+            }
+
+
+
+            @keyframes heartBeat {
+                0%, 100% {
+                    transform: scale(1);
+                }
+
+                25% {
+                    transform: scale(1.25);
+                }
+            }
+
+            .heart-beat {
+                animation-name: heartBeat;
+                animation-timing-function: ease-in-out;
+                animation-iteration-count: infinite;
+            }
+
+            /* =========================
+           TEMPO BAR
+        ========================== */
+            .tempo-bar {
+                width: 100%;
+                text-align: center;
+                margin-top: 4px;
+                font-weight: 700;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: var(--accent);
+                font-size: clamp(1.2rem, 3.2vw, 2.2rem);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            /* =========================
+           CONTROLS / INPUTS / BUTTONS
+        ========================== */
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 8px;
+                margin-top: 6px;
+                align-items: center;
+                max-width: 100%;
+            }
+
+            label {
+                font-size: clamp(0.7rem, 1.5vmin, 0.9rem);
+                opacity: 0.8;
+            }
+
+            input[type=number] {
+                width: 80px;
+                padding: 6px 8px;
+                border-radius: 10px;
+                border: 1px solid #333;
+                background: #111;
+                color: var(--text);
+                font-size: 0.9rem;
+                text-align: center;
+            }
+
+            input[type=color] {
+                width: 50px;
+                height: 32px;
+                border: none;
+                border-radius: 8px;
+                background: transparent;
+                cursor: pointer;
+            }
+
+            input[type=range] {
+                width: 160px;
+            }
+
+            select {
+                padding: 6px 8px;
+                border-radius: 10px;
+                border: 1px solid #333;
+                background: #111;
+                color: var(--text);
+                font-size: 0.9rem;
+            }
+
+            .btn {
+                background: #111;
+                color: var(--accent);
+                border: 1px solid var(--accent);
+                padding: 10px 18px;
+                font-weight: 700;
+                border-radius: 12px;
+                cursor: pointer;
+                transition: 0.15s;
+                font-size: clamp(0.9rem, 2vmin, 1rem);
+            }
+
+                .btn:hover {
+                    background: var(--accent);
+                    color: white;
+                }
+
+                .btn.reset {
+                    background: #2b2b2b;
+                    border-color: #555;
+                    color: #ccc;
+                }
+
+            /* =========================
+           FOOTER
+        ========================== */
+            .footer {
+                font-size: clamp(0.7rem, 1.5vmin, 0.9rem);
+                opacity: 0.7;
+                margin-top: 4px;
+                text-align: center;
+            }
+
+                .footer span {
+                    display: inline-block;
+                    margin-left: 0.5rem;
+                }
+
+            /* =========================
+           GLOW ANIMATION (WORK PHASE)
+        ========================== */
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 18%, black);
+            }
+
+            50% {
+                box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 35%, black);
+            }
+        }
+
+        /* IMPORTANT: do NOT animate the element's box-shadow (it nukes the inset GBA border) */
+        .glow-pulse {
+            animation: none;
+        }
+
+
+            /* =========================
+           HR PANEL (SETTINGS)
+        ========================== */
+        .hr-panel {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: color-mix(in srgb, var(--accent) 8%, #181818);
+            border: 1px solid color-mix(in srgb, var(--accent) 25%, #333);
+            margin-top: 8px;
+        }
+
+            .hr-main {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                min-width: 180px;
+            }
+
+            .hr-label {
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                letter-spacing: 0.18em;
+                color: var(--muted);
+            }
+
+            .hr-value {
+                font-size: 2rem;
+                font-weight: 800;
+                line-height: 1;
+            }
+
+            .hr-meta {
+                font-size: 0.75rem;
+                color: var(--muted);
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .hr-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                justify-content: flex-end;
+                flex: 1;
+            }
+
+            /* =========================
+           HR GRAPH (ALWAYS VISIBLE)
+        ========================== */
+            .hr-graph-container {
+                width: 100%;
+                margin-top: 6px;
+                padding: 8px 10px 6px;
+                border-radius: 14px;
+                background: var(--outside-bg);
+                border: 1px solid color-mix(in srgb, var(--accent) 22%, black);
+            }
+
+            .hr-graph-title {
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                letter-spacing: 0.18em;
+                color: var(--muted);
+                margin-bottom: 3px;
+            }
+
+            #hrChart {
+                width: 100%;
+                height: 120px;
+                display: block;
+            }
+
+            /* =========================
+           SETTINGS PANEL (COLLAPSIBLE)
+        ========================== */
+            .settings {
+                width: 100%;
+                margin-top: 8px;
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .settings-toggle {
+                align-self: flex-end;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding-inline: 12px;
+                font-size: 0.8rem;
+                text-transform: uppercase;
+                letter-spacing: 0.12em;
+            }
+
+                .settings-toggle .gear-icon {
+                    font-size: 1rem;
+                    transition: transform 0.2s ease;
+                }
+
+
+
+            .settings.open .settings-toggle .gear-icon {
+                transform: rotate(90deg);
+            }
+
+            /* =========================
+           TEXT SIZE DROPDOWN
+        ========================== */
+        details.type-settings {
+            width: 100%;
+            margin-top: 8px;
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--accent) 8%, #161616);
+            border: 1px solid color-mix(in srgb, var(--accent) 25%, #333);
+            padding: 6px 10px 8px;
+        }
+
+                details.type-settings summary {
+                    cursor: pointer;
+                    list-style: none;
+                    font-size: 0.8rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.12em;
+                    color: var(--muted);
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                }
+
+                    details.type-settings summary::-webkit-details-marker {
+                        display: none;
+                    }
+
+            .type-rows {
+                margin-top: 6px;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .type-row {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                justify-content: space-between;
+            }
+
+                .type-row label {
+                    flex: 0 0 120px;
+                }
+
+                .type-row span.value {
+                    width: 40px;
+                    text-align: right;
+                    font-size: 0.75rem;
+                    color: var(--muted);
+                }
+
+        /* ===== FORCE THE WEB "CARD" TO FIT INSIDE THE PIXEL SCREEN ===== */
+        .pixel-stage .app {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            border-radius: 0;
+            padding: 0;
+            border: 0;
+            box-shadow: none;
+            background: transparent;
+            /* stop the flex column stacking for now */
+            display: block;
+            position: relative;
+        }
+        /* =========================================================
+   480x320 HUD: LEFT TIMER / RIGHT HR GRAPH (HARD BOUNDS)
+========================================================= */
+
+        .pixel-stage {
+            overflow: visible;
+        }
+
+        /* Two columns that add up to 480px */
+        .hud {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            grid-template-columns: 270px 210px; /* left / right (wider HR) */
+            grid-template-rows: 320px;
+        }
+
+
+        /* LEFT SIDE */
+        .hud-left {
+            position: relative;
+            width: 270px;
+            height: 320px;
+        }
+
+
+            /* Make ring a fixed pixel size (STOP using vmin here) */
+            .hud-left .ring {
+                width: 260px;
+                height: 260px;
+                aspect-ratio: auto;
+                position: absolute;
+                left: 10px; /* was 5px */
+                top: 24px; /* was 10px */
+            }
+
+
+
+            /* Tempo pinned under ring */
+            .hud-left .tempo-bar {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 10px;
+                margin: 0;
+                font-size: 18px; /* overrides clamp() so it doesn't blow up */
+            }
+
+        /* RIGHT SIDE */
+        .hud-right {
+            position: relative;
+            width: 210px; /* match grid-template-columns */
+            height: 320px;
+            padding: 10px;
+        }
+
+
+
+            /* HR graph fits right column */
+            .hud-right .hr-graph-container {
+                margin-top: 0;
+                padding: 4px 4px 3px; /* tighter = more canvas width */
+                border-radius: 10px;
+            }
+
+
+            /* Slightly shorter so buttons can fit */
+            .hud-right #hrChart {
+                height: 140px;
+            }
+
+            /* =========================
+   MIN/MAX HUD BOX (UNDER HR GRAPH)
+========================= */
+            .hud-right .hr-minmax-box {
+                margin-top: 10px; /* spacing under chart */
+                width: 100%;
+                border-radius: 10px;
+                padding: 6px 10px; /* matches .pixel-stage .btn padding */
+                background: #111; /* dark box */
+                border: 1px solid color-mix(in srgb, var(--accent) 22%, #000);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                height: 30px; /* “about the same size” as the settings button */
+            }
+
+                .hud-right .hr-minmax-box .hr-mm-item {
+                    font-size: 11px; /* matches pixel-stage button text */
+                    letter-spacing: 0.10em;
+                    text-transform: uppercase;
+                    color: var(--muted);
+                    white-space: nowrap;
+                }
+
+                    .hud-right .hr-minmax-box .hr-mm-item span {
+                        color: var(--text);
+                        font-variant-numeric: tabular-nums;
+                        font-weight: 800;
+                        letter-spacing: 0.02em;
+                    }
+
+
+            /* Buttons fit right column */
+            .hud-right .controls {
+                justify-content: space-between;
+                gap: 8px;
+                margin-top: 10px;
+            }
+
+            .hud-right .btn {
+                padding: 8px 10px;
+                font-size: 12px;
+                border-radius: 10px;
+                flex: 1;
+            }
+
+            /* Footer pinned bottom of right column */
+            .hud-right .footer {
+                position: absolute;
+                left: 10px;
+                right: 10px;
+                bottom: 8px;
+                margin: 0;
+                font-size: 10px;
+                text-align: center;
+            }
+
+            /* =========================================================
+   SETTINGS: BUTTON BELOW RESET + FULL-SCREEN OVERLAY (IN STAGE)
+========================================================= */
+
+            /* Make Start/Reset on one row, Settings on the next row */
+            .hud-right .main-controls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 10px;
+            }
+
+                .hud-right .main-controls #startPause,
+                .hud-right .main-controls #reset {
+                    flex: 1 1 0;
+                }
+
+                .hud-right .main-controls .settings-btn {
+                    flex: 0 0 100%; /* forces it below */
+                    padding: 8px 10px;
+                    font-size: 12px;
+                    border-radius: 10px;
+                }
+
+        /* Turn .settings into an overlay that covers the whole stage */
+        .pixel-stage .settings {
+            position: absolute;
+            inset: 0;
+            margin: 0;
+            z-index: 500;
+            display: block;
+            pointer-events: none; /* closed = clicks go through */
+        }
+
+            /* Dim backdrop (only visible when open) */
+            .pixel-stage .settings::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.55);
+                opacity: 0;
+                transition: opacity 140ms ease;
+            }
+
+        /* The panel itself: full-stage “screen” */
+        .pixel-stage .settings-panel {
+            position: absolute;
+            inset: 8px;
+            max-height: none; /* override old accordion behavior */
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 140ms ease, transform 140ms ease;
+            pointer-events: none;
+            background: color-mix(in srgb, var(--stage-bg) 92%, black);
+            border: 2px solid color-mix(in srgb, var(--accent) 70%, black);
+            border-radius: 12px;
+            padding: 8px;
+            overflow: auto; /* scroll inside the stage */
+        }
+
+        /* Open state (your JS already toggles .settings.open) */
+        .pixel-stage .settings.open {
+            pointer-events: auto;
+        }
+
+            .pixel-stage .settings.open::before {
+                opacity: 1;
+            }
+
+            .pixel-stage .settings.open .settings-panel {
+                opacity: 1;
+                transform: translateY(0);
+                pointer-events: auto;
+            }
+
+        .pixel-stage {
+            font-size: 12px; /* sets a sane baseline inside the stage */
+        }
+
+            /* Settings overlay header + close button */
+        .pixel-stage .settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.10);
+        }
+
+        .pixel-stage .settings-title {
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            font-size: 8px;
+            color: var(--accent);
+        }
+
+        .pixel-stage .settings-close {
+            padding: 3px 6px;
+            font-size: 7px;
+            border-radius: 8px;
+            flex: 0 0 auto;
+        }
+
+            /* =========================================================
+   SETTINGS: SMALLER TEXT + ACCENT CONSISTENCY (PIXEL STAGE)
+========================================================= */
+
+            /* shrink everything inside the overlay */
+            .pixel-stage .settings-panel {
+                font-size: 7.5px;
+                line-height: 1.15;
+            }
+
+
+                /* labels like PREP / FIGHT / REST */
+                .pixel-stage .settings-panel label {
+                    font-size: 7px;
+                    letter-spacing: 0.08em;
+                }
+
+                /* number boxes + dropdown */
+                .pixel-stage .settings-panel input[type=number],
+                .pixel-stage .settings-panel select {
+                    font-size: 7.5px;
+                    padding: 3px 5px;
+                    height: 16px;
+                    border-color: color-mix(in srgb, var(--accent) 18%, #333);
+                }
+
+                    /* dropdown + input focus should show accent */
+                    .pixel-stage .settings-panel input[type=number]:focus,
+                    .pixel-stage .settings-panel select:focus {
+                        outline: none;
+                        border-color: var(--accent);
+                        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+                    }
+
+                /* section headers like TEXT SIZE / HEART RATE */
+                .pixel-stage .settings-panel summary {
+                    font-size: 9px;
+                    letter-spacing: 0.14em;
+                }
+
+                /* the little “value” text on sliders */
+                .pixel-stage .settings-panel .type-row span.value {
+                    font-size: 9px;
+                }
+
+            /* keep CLOSE from looking huge */
+            .pixel-stage .settings-close {
+                font-size: 10px;
+                padding: 6px 10px;
+            }
+
+            /* OPTIONAL: if the color picker looks odd, give it a border */
+            .pixel-stage .settings-panel input[type=color] {
+                border-radius: 8px;
+                outline: 1px solid color-mix(in srgb, var(--accent) 25%, #333);
+            }
+
+        /* =========================================================
+   FULLSCREEN HR MODAL (IN STAGE)
+========================================================= */
+        .hr-modal {
+            position: absolute;
+            inset: 0;
+            z-index: 450; /* below settings (500), above HUD */
+            pointer-events: none; /* closed = click-through */
+        }
+
+            .hr-modal::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: rgba(0,0,0,0.60);
+                opacity: 0;
+                transition: opacity 140ms ease;
+            }
+
+            .hr-modal.open {
+                pointer-events: auto;
+            }
+
+                .hr-modal.open::before {
+                    opacity: 1;
+                }
+
+        .hr-modal-panel {
+            position: absolute;
+            inset: 8px;
+            background: color-mix(in srgb, var(--stage-bg) 92%, black);
+            border: 2px solid color-mix(in srgb, var(--accent) 70%, black);
+            border-radius: 12px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 140ms ease, transform 140ms ease;
+        }
+
+        .hr-modal.open .hr-modal-panel {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .hr-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.10);
+        }
+
+        .hr-modal-title {
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            font-size: 11px;
+            color: var(--accent);
+        }
+
+        .hr-modal-close {
+            font-size: 10px;
+            padding: 6px 10px;
+            border-radius: 10px;
+            flex: 0 0 auto;
+        }
+
+        #hrChartFull {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+
+        /* =========================================================
+   PIXEL-TYPED SCALE OVERRIDES (480x320 MODE)
+========================================================= */
+
+        /* Base font inside the stage */
+        .pixel-stage {
+            font-size: 11px;
+            line-height: 1.2;
+        }
+
+            /* ===== TIMER RETICLE TEXT ===== */
+            .pixel-stage .phase {
+                font-size: 14px; /* READY / WORK / REST */
+                letter-spacing: 0.12em;
+                margin-bottom: 2px;
+            }
+
+            .pixel-stage .big {
+                font-size: 34px; /* 00:30 */
+                line-height: 1.05;
+            }
+
+            .pixel-stage .small {
+                font-size: 11px; /* ROUND / NEXT */
+            }
+
+            .pixel-stage #roundInfo {
+                font-size: 11px;
+            }
+
+            .pixel-stage #nextInfo {
+                font-size: 11px;
+            }
+
+            /* ===== HR INSIDE RING ===== */
+            .pixel-stage .hr-reticle {
+                font-size: 11px;
+                margin-top: 4px;
+                gap: 2px;
+            }
+
+            .pixel-stage .hr-heart {
+                font-size: 32px;
+            }
+
+            .pixel-stage .hr-reticle-value {
+                font-size: 26px;
+                font-weight: 800;
+                line-height: 1;
+                width: 2ch;
+                min-width: 2ch;
+                text-align: center;
+            }
+
+            .pixel-stage .hr-reticle[data-digits="3"] .hr-reticle-value {
+                width: 3ch;
+                min-width: 3ch;
+            }
+
+
+
+            /* ===== TEMPO LABEL ===== */
+            .pixel-stage .tempo-bar {
+                font-size: 14px;
+                letter-spacing: 0.14em;
+            }
+
+            /* ===== RIGHT PANEL ===== */
+            .pixel-stage .hr-graph-title {
+                font-size: 9px;
+                letter-spacing: 0.18em;
+            }
+
+            .pixel-stage .footer {
+                font-size: 9px;
+            }
+
+            /* ===== BUTTONS ===== */
+            .pixel-stage .btn {
+                font-size: 11px;
+                padding: 6px 10px;
+            }
+
+            /* ===== SETTINGS PANEL ===== */
+            .pixel-stage .settings-title {
+                font-size: 11px;
+            }
+
+            .pixel-stage .settings label {
+                font-size: 10px;
+            }
+
+            .pixel-stage .settings input,
+            .pixel-stage .settings select {
+                font-size: 11px;
+                padding: 4px 6px;
+            }
+
+            .pixel-stage details.type-settings summary {
+                font-size: 10px;
+            }
+
+            .pixel-stage .type-row label {
+                font-size: 10px;
+            }
+
+            .pixel-stage .type-row span.value {
+                font-size: 9px;
+            }
+
+            /* Disable clamp sizing, but allow settings to be smaller */
+            .pixel-stage * {
+                font-size: inherit;
+            }
+
+            .pixel-stage .settings-panel * {
+                font-size: unset;
+            }
+
+
+        /* =========================================================
+           FINAL OVERRIDES: PIXEL-STAGE SETTINGS OVERLAY (NO SCROLL)
+           These come LAST so they win against earlier experiments.
+        ========================================================== */
+
+        /* Hide desktop-only settings sections inside the 480x320 overlay */
+        .pixel-stage .settings-panel .type-settings {
+            display: none !important;
+        }
+
+        /* Make the overlay a single, dense panel */
+            .pixel-stage .settings-panel {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                overflow-x: hidden;
+            }
+
+        /* Shared row layout */
+        .pixel-stage .settings-panel > .controls {
+            display: grid;
+            align-items: center;
+            justify-content: center;
+            column-gap: 6px;
+            row-gap: 4px;
+            margin-top: 0;
+        }
+
+        /* Keep labels tight and right-aligned */
+        .pixel-stage .settings-panel > .controls > label {
+            justify-self: end;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* Inputs align left */
+            .pixel-stage .settings-panel > .controls > input,
+            .pixel-stage .settings-panel > .controls > select {
+                justify-self: stretch;
+                width: 100%;
+            }
+
+
+            /* ROW 1: PREP / ROUNDS / FIGHT */
+        .pixel-stage .settings-panel > .controls:nth-child(2) {
+            grid-template-columns: 32px 56px /* PREP */
+            44px 56px /* ROUNDS */
+            34px 56px; /* FIGHT */
+        }
+
+            /* ROW 2: REST / COOL */
+        .pixel-stage .settings-panel > .controls:nth-child(3) {
+            grid-template-columns: 32px 56px /* REST */
+            32px 56px; /* COOL */
+        }
+
+            /* ROW 3: MAX HR / TEMPO SEG / MAX ZONE */
+        .pixel-stage .settings-panel > .controls:nth-child(4) {
+            grid-template-columns: 44px 56px /* MAX HR */
+            58px 56px /* TEMPO SEG */
+            58px 56px; /* MAX ZONE */
+        }
+
+            /* ROW 4: DIFF / ACCENT */
+        .pixel-stage .settings-panel > .controls:nth-child(5) {
+            grid-template-columns: 28px 84px /* DIFF */
+            44px 46px; /* ACCENT */
+        }
+
+        /* ROW 5: SESSION */
+        .pixel-stage .settings-panel > .controls:nth-child(6) {
+            grid-template-columns: 44px 110px;
+        }
+
+
+
+
+        /* Compact controls */
+                .pixel-stage .settings-panel input[type=number] {
+                    width: 34px;
+                    padding: 2px 4px;
+                    text-align: center;
+                }
+                    /* Remove number spinners so digits don't get squeezed */
+                    .pixel-stage .settings-panel input[type=number]::-webkit-outer-spin-button,
+                    .pixel-stage .settings-panel input[type=number]::-webkit-inner-spin-button {
+                        -webkit-appearance: none;
+                        margin: 0;
+                    }
+
+                .pixel-stage .settings-panel input[type=number] {
+                    -moz-appearance: textfield;
+                }
+
+                .pixel-stage .settings-panel select {
+                    height: 16px;
+                    padding: 2px 4px;
+                    font-size: 5.5px;
+                }
+
+
+
+
+        .pixel-stage .settings-panel select {
+            width: 76px;
+        }
+
+        .pixel-stage .settings-panel input[type=color] {
+            width: 46px;
+            height: 22px;
+            padding: 0;
+            border-radius: 6px;
+            border: 0;
+            outline: 1px solid color-mix(in srgb, var(--accent) 25%, #333);
+        }
+
+        /* HR panel: keep it inside the overlay, no clipping, no wasting space */
+        .pixel-stage .hr-panel {
+            margin-top: 6px;
+            padding: 6px 8px;
+            border-radius: 10px;
+            gap: 8px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+        }
+
+        .pixel-stage .hr-main {
+            min-width: 0;
+            gap: 1px;
+        }
+
+        .pixel-stage .hr-label {
+            font-size: 8px;
+            letter-spacing: 0.12em;
+        }
+
+        .pixel-stage .hr-value {
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        .pixel-stage .hr-meta {
+            font-size: 8px;
+            gap: 6px;
+        }
+
+        .pixel-stage .hr-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: nowrap;
+        }
+
+        .pixel-stage .hr-actions .btn {
+            width: 112px;
+            font-size: 10px;
+            padding: 6px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        .profile-summary {
+            margin-top: 10px;
+            padding: 8px 10px;
+            background: var(--panel);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: var(--text);
+        }
+
+        .profile-summary strong {
+            color: var(--accent);
+        }
+
+        .profile-summary .muted {
+            color: var(--muted);
+        }
+
+    </style>
+</head>
+
+<body>
+        <div class="pixel-stage">
+            <div class="ui">
+                <div class="app">
+                <div class="hud">
+                    <div class="hud-left">
+
+
+                        <!-- =========================================================
+                 TIMER RING
+            ========================================================== -->
+                        <div class="ring" id="ring">
+                            <svg viewBox="0 0 140 140">
+                                <g id="roundSegments" transform="rotate(-90 70 70)"></g>
+                                <g id="tempoSegments" transform="rotate(-90 70 70)"></g>
+
+                                <circle cx="70" cy="70" r="56" fill="none" stroke="#2b2b30" stroke-width="6" />
+                                <g transform="rotate(-90 70 70)">
+                                    <circle id="progress"
+                                            cx="70"
+                                            cy="70"
+                                            r="56"
+                                            fill="none"
+                                            stroke="var(--accent)"
+                                            stroke-width="6"
+                                            stroke-linecap="butt"
+                                            stroke-dasharray="351"
+                                            stroke-dashoffset="351" />
+                                </g>
+                            </svg>
+
+                            <!-- CENTER RETICLE -->
+                            <div class="center">
+                                <div class="phase" id="phase">READY</div>
+                                <div class="big" id="clock">03:00</div>
+                                <div class="small" id="roundInfo">ROUND 0 / 5</div>
+                                <div class="small" id="nextInfo">NEXT: PREP</div>
+
+                                <!-- HR INSIDE RETICLE -->
+                                <div class="hr-reticle">
+                                    <span class="hr-heart" id="hrHeart">♥</span>
+                                    <span class="hr-reticle-value" id="hrReticleValue">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- =========================================================
+                 TEMPO BAR (OPTIONAL; HIDDEN WHEN OFF)
+            ========================================================== -->
+                        <div class="tempo-bar" id="tempoBar"></div>
+                    </div>
+                    <div class="hud-right">
+
+                        <!-- =========================================================
+         ALWAYS-VISIBLE LIVE HR GRAPH
+    ========================================================== -->
+                        <div class="hr-graph-container" id="hrGraphContainer" role="button" tabindex="0" aria-label="Open full heart rate graph">
+                            <div class="hr-graph-title">HR</div>
+                            <canvas id="hrChart"></canvas>
+                        </div>
+
+
+                        <!-- MIN/MAX (UNDER HR GRAPH) -->
+                        <div class="hr-minmax-box" id="hrMinMaxHud" aria-label="Heart rate min and max">
+                            <div class="hr-mm-item">MIN: <span id="hrMinHud">--</span></div>
+                            <div class="hr-mm-item">MAX: <span id="hrMaxHud">--</span></div>
+                        </div>
+
+
+                        <!-- =========================================================
+         MAIN CONTROLS
+    ========================================================== -->
+                        <div class="controls main-controls">
+                            <button id="startPause" class="btn">START</button>
+                            <button id="reset" class="btn reset">RESET</button>
+
+                            <button class="btn settings-toggle settings-btn"
+                                    id="settingsToggle"
+                                    type="button"
+                                    aria-expanded="false">
+                                <span class="gear-icon">⚙</span>
+                                Settings
+                            </button>
+                        </div>
+
+
+                        <!-- =========================================================
+         FOOTER
+    ========================================================== -->
+                        <div class="footer">
+                            HR_TIMER © 2024
+                            <span id="sessionTime">Session: 00:00</span>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- =========================================================
+         SETTINGS PANEL
+    ========================================================== -->
+                <div class="settings">
+
+                    <div class="settings-panel" id="settingsPanel">
+                        <div class="settings-header">
+                            <div class="settings-title">SETTINGS</div>
+
+                            <button class="btn reset settings-close"
+                                    id="settingsClose"
+                                    type="button">
+                                CLOSE
+                            </button>
+                        </div>
+
+                        <!-- Timer durations -->
+                        <div class="controls">
+                            <label>PREP</label>
+                            <input id="prep" type="number" min="1" value="30" />
+
+                            <label>ROUNDS</label>
+                            <input id="rounds" type="number" min="1" value="5" />
+
+                            <label>FIGHT</label>
+                            <input id="work" type="number" min="1" value="180" />
+                        </div>
+
+                        <!-- REST + COOL -->
+                        <div class="controls">
+                            <label>REST</label>
+                            <input id="rest" type="number" min="0" value="60" />
+
+                            <label>COOL</label>
+                            <input id="cooldown" type="number" min="0" value="180" />
+                        </div>
+
+
+                        <!-- HR / Tempo guidance settings -->
+                        <div class="controls">
+                            <label>MAX HR</label>
+                            <input id="maxHr" type="number" min="100" value="185" />
+
+                            <label>TEMPO SEG</label>
+                            <!-- 0 = OFF -->
+                            <input id="tempoSeg" type="number" min="0" value="0" />
+
+                            <label>MAX ZONE</label>
+                            <input id="maxZone" type="number" min="2" max="5" value="4" />
+                        </div>
+
+                        <!-- DIFF + ACCENT -->
+                        <div class="controls">
+                            <label>DIFF</label>
+                            <select id="tempoDiff">
+                                <option value="easy">Easy</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="hard">Hard</option>
+                            </select>
+
+                            <label>ACCENT</label>
+                            <input type="color" id="colorPicker" value="#0868c0" />
+                        </div>
+
+                        <!-- SESSION TYPE -->
+                        <div class="controls">
+                            <label>SESSION</label>
+                            <select id="sessionType">
+                                <option value="weight">Weight</option>
+                                <option value="cardio">Cardio</option>
+                                <option value="striker">Striker</option>
+                                <option value="sparring">Sparring</option>
+                                <option value="mixed" selected>Mixed</option>
+                            </select>
+                        </div>
+
+
+                        <!-- TEXT SIZE DROPDOWN -->
+                        <details class="type-settings">
+                            <summary>
+                                <span>Text Size</span>
+                                <span>▼</span>
+                            </summary>
+
+                            <div class="type-rows">
+                                <div class="type-row">
+                                    <label for="phaseSize">READY</label>
+                                    <input type="range" id="phaseSize" min="0.6" max="1.8" step="0.1" value="1" />
+                                    <span class="value" id="phaseSizeVal">1.0×</span>
+                                </div>
+
+                                <div class="type-row">
+                                    <label for="clockSize">Time</label>
+                                    <input type="range" id="clockSize" min="0.6" max="1.8" step="0.1" value="1" />
+                                    <span class="value" id="clockSizeVal">1.0×</span>
+                                </div>
+
+                                <div class="type-row">
+                                    <label for="roundSize">Round</label>
+                                    <input type="range" id="roundSize" min="0.6" max="1.8" step="0.1" value="1" />
+                                    <span class="value" id="roundSizeVal">1.0×</span>
+                                </div>
+
+                                <div class="type-row">
+                                    <label for="nextSize">Next phase</label>
+                                    <input type="range" id="nextSize" min="0.6" max="1.8" step="0.1" value="1" />
+                                    <span class="value" id="nextSizeVal">1.0×</span>
+                                </div>
+
+                                <div class="type-row">
+                                    <label for="hrSize">HR</label>
+                                    <input type="range" id="hrSize" min="0.6" max="1.8" step="0.1" value="1" />
+                                    <span class="value" id="hrSizeVal">1.0×</span>
+                                </div>
+                            </div>
+                        </details>
+
+                        <!-- HEART RATE PANEL (IN SETTINGS) -->
+                        <div class="hr-panel">
+                            <div class="hr-main">
+                                <div class="hr-label">Heart Rate</div>
+                                <div class="hr-value" id="hrValue">--</div>
+                                <div class="hr-meta">
+                                    <span id="hrStatus">Not connected</span>
+                                    <span id="hrMinMax">Min: --  Max: --</span>
+                                </div>
+                            </div>
+                            <div class="hr-actions">
+                                <button class="btn" id="hrConnect">Connect HR Monitor</button>
+                                <button class="btn reset" id="hrExport">Export HR CSV</button>
+                            </div>
+                            <div class="profile-summary" id="profileSummary">
+                                <div><strong id="profileName">No profile loaded</strong></div>
+                                <div class="muted" id="profileMeta">Use Profile to set age, height, and weight.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- =========================================================
+         FULLSCREEN HR GRAPH (CLICK HR GRAPH TO OPEN)
+    ========================================================== -->
+                    <div class="hr-modal" id="hrModal" aria-hidden="true">
+                        <div class="hr-modal-panel" role="dialog" aria-modal="true" aria-label="Full heart rate graph">
+                            <div class="hr-modal-header">
+                                <div class="hr-modal-title">HEART RATE</div>
+                                <button class="btn reset hr-modal-close" id="hrModalClose" type="button">CLOSE</button>
+                            </div>
+                            <canvas id="hrChartFull"></canvas>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+
+    <!-- =========================================================
+         SCRIPT
+    ========================================================== -->
+    <script>
+
+        (() => {
+            const $ = s => document.querySelector(s);
+            const el = {
+                progress: $('#progress'),
+                clock: $('#clock'),
+                phase: $('#phase'),
+                roundInfo: $('#roundInfo'),
+                nextInfo: $('#nextInfo'),
+                tempoBar: $('#tempoBar'),
+                startPause: $('#startPause'),
+                reset: $('#reset'),
+                prep: $('#prep'),
+                work: $('#work'),
+                rest: $('#rest'),
+                rounds: $('#rounds'),
+                cooldown: $('#cooldown'),
+                roundSegments: $('#roundSegments'),
+                tempoSegments: $('#tempoSegments'),
+                colorPicker: $('#colorPicker'),
+                maxHr: $('#maxHr'),
+                tempoSeg: $('#tempoSeg'),
+                maxZone: $('#maxZone'),
+                tempoDiff: $('#tempoDiff'),
+                sessionType: $('#sessionType'),
+                sessionTime: $('#sessionTime'),
+                // HR UI (settings panel)
+                hrValue: $('#hrValue'),
+                hrStatus: $('#hrStatus'),
+                hrMinMax: $('#hrMinMax'),
+                // HR min/max (HUD, under graph)
+                hrMinHud: $('#hrMinHud'),
+                hrMaxHud: $('#hrMaxHud'),
+                hrConnect: $('#hrConnect'),
+                hrExport: $('#hrExport'),
+                // HR in reticle
+                hrReticleValue: $('#hrReticleValue'),
+                hrHeart: $('#hrHeart'),
+                // HR chart
+                hrChart: $('#hrChart'),
+                // HR chart (small)
+                hrChart: $('#hrChart'),
+
+                // HR fullscreen modal
+                hrGraphContainer: $('#hrGraphContainer'),
+                hrModal: $('#hrModal'),
+                hrModalClose: $('#hrModalClose'),
+                hrChartFull: $('#hrChartFull'),
+
+                // Settings
+                settings: document.querySelector('.settings'),
+                settingsToggle: $('#settingsToggle'),
+                settingsPanel: $('#settingsPanel'),
+                // text sliders
+                phaseSize: $('#phaseSize'),
+                clockSize: $('#clockSize'),
+                roundSize: $('#roundSize'),
+                nextSize: $('#nextSize'),
+                hrSize: $('#hrSize'),
+                phaseSizeVal: $('#phaseSizeVal'),
+                clockSizeVal: $('#clockSizeVal'),
+                roundSizeVal: $('#roundSizeVal'),
+                nextSizeVal: $('#nextSizeVal'),
+                hrSizeVal: $('#hrSizeVal')
+            };
+
+            const root = document.documentElement;
+            function loadProfile() {
+                try {
+                    const raw = localStorage.getItem('cardioanalysis:profile');
+                    return raw ? JSON.parse(raw) : null;
+                } catch {
+                    return null;
+                }
+            }
+
+            function computeMaxHr(profile) {
+                const age = parseInt(profile?.age || '', 10);
+                if (!isFinite(age) || age <= 0) return null;
+                return Math.max(120, 220 - age);
+            }
+
+            // =========================================================
+            // THEME: accent-driven surfaces + subtle hue grading
+            // =========================================================
+            function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+            function hexToRgb(hex) {
+                const h = (hex || '').trim().replace('#', '');
+                const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+                if (full.length !== 6) return null;
+                const n = parseInt(full, 16);
+                return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+            }
+
+            function rgbToHex({ r, g, b }) {
+                const to2 = v => Math.round(v).toString(16).padStart(2, '0');
+                return `#${to2(r)}${to2(g)}${to2(b)}`;
+            }
+
+            function rgbToHsl({ r, g, b }) {
+                r /= 255; g /= 255; b /= 255;
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                const d = max - min;
+                let h = 0;
+                let s = 0;
+                const l = (max + min) / 2;
+
+                if (d !== 0) {
+                    s = d / (1 - Math.abs(2 * l - 1));
+                    switch (max) {
+                        case r: h = ((g - b) / d) % 6; break;
+                        case g: h = (b - r) / d + 2; break;
+                        case b: h = (r - g) / d + 4; break;
+                    }
+                    h *= 60;
+                    if (h < 0) h += 360;
+                }
+
+                return { h, s, l };
+            }
+
+            function hslToRgb({ h, s, l }) {
+                const C = (1 - Math.abs(2 * l - 1)) * s;
+                const hp = (h % 360) / 60;
+                const X = C * (1 - Math.abs((hp % 2) - 1));
+                let r1 = 0, g1 = 0, b1 = 0;
+
+                if (0 <= hp && hp < 1) [r1, g1, b1] = [C, X, 0];
+                else if (1 <= hp && hp < 2) [r1, g1, b1] = [X, C, 0];
+                else if (2 <= hp && hp < 3) [r1, g1, b1] = [0, C, X];
+                else if (3 <= hp && hp < 4) [r1, g1, b1] = [0, X, C];
+                else if (4 <= hp && hp < 5) [r1, g1, b1] = [X, 0, C];
+                else if (5 <= hp && hp < 6) [r1, g1, b1] = [C, 0, X];
+
+                const m = l - C / 2;
+                return {
+                    r: (r1 + m) * 255,
+                    g: (g1 + m) * 255,
+                    b: (b1 + m) * 255,
+                };
+            }
+
+            function gradeAccent(hex) {
+                const rgb = hexToRgb(hex);
+                if (!rgb) return null;
+                const base = rgbToHsl(rgb);
+
+                // ---------------------------------------------------------
+                // HUE SHIFTING / HUE BENDING
+                // Shadows bend toward deep blue/purple, highlights toward warm yellow.
+                // This prevents "blue -> green/cyan" when going darker.
+                // ---------------------------------------------------------
+                const SHADOW_HUE = 235;   // deep blue / blue-purple territory
+                const HIGHLIGHT_HUE = 65; // warm yellow
+
+                const wrapHue = (h) => ((h % 360) + 360) % 360;
+
+                // shortest signed distance from a -> b in degrees (-180..180]
+                const hueDelta = (a, b) => {
+                    let d = wrapHue(b) - wrapHue(a);
+                    if (d > 180) d -= 360;
+                    if (d <= -180) d += 360;
+                    return d;
+                };
+
+                // circular lerp
+                const hueLerp = (a, b, t) => wrapHue(a + hueDelta(a, b) * t);
+
+                const hueDist01 = (a, b) => Math.abs(hueDelta(a, b)) / 180; // 0..1
+
+                // Smooth "keep my hue" weighting near warm hues.
+                // 0 = allow strong pull toward SHADOW_HUE (cool shadows)
+                // 1 = keep hue close to itself (warm shadows)
+                const smoothstep01 = (t) => t * t * (3 - 2 * t);
+
+                const hueBump = (h, center, widthDeg) => {
+                    // widthDeg: how wide the influence range is (in degrees)
+                    const d = Math.abs(hueDelta(h, center)); // 0..180
+                    let t = 1 - (d / widthDeg);             // 1 at center, 0 at edge
+                    t = clamp01(t);
+                    return smoothstep01(t);
+                };
+
+                // Bumps around warm families (overlapping = smooth)
+                const bumpRed = hueBump(base.h, 0, 42);
+                const bumpYellow = hueBump(base.h, 60, 55);
+                const bumpPink = hueBump(base.h, 320, 50);
+
+                // Smooth union (avoids harsh max() transitions)
+                const keepHue = 1 - (1 - bumpRed) * (1 - bumpYellow) * (1 - bumpPink);
+
+                // For highlights, only protect red/pink from being yanked toward yellow
+                const keepHighlight = 1 - (1 - bumpRed) * (1 - bumpPink);
+
+                // This is the actual strength of the "pull toward cool shadows"
+                const shadowPull = 1 - keepHue; // cool hues ~1, warm hues ~0
+
+
+                // How hard we bend depends on how far the base hue is from the target.
+                // Warm accents (yellow/green) bend a LOT toward blue in shadows.
+                // Cool accents (blue) bend a little toward deeper blue/purple.
+                const dShadow = hueDist01(base.h, SHADOW_HUE);
+                const dHighlight = hueDist01(base.h, HIGHLIGHT_HUE);
+
+                const darkBend = clamp01(0.35 + 0.50 * dShadow);       // 0.35..0.85
+                const brightBend = clamp01(0.10 + 0.25 * dHighlight);  // 0.10..0.35
+
+                // Accent variants
+                const dark = {
+                    h: hueLerp(base.h, SHADOW_HUE, darkBend * shadowPull),
+                    s: clamp01(base.s * 0.92),
+                    l: clamp01(base.l * 0.42)
+                };
+
+                const bright = {
+                    h: hueLerp(base.h, HIGHLIGHT_HUE, brightBend * (1 - keepHighlight)),
+                    s: clamp01(base.s * 1.05),
+                    l: clamp01(base.l + (1 - base.l) * 0.22)
+                };
+
+                // Bright version that keeps the SAME hue (no drift toward yellow).
+                // This is what the HR chart should use so it "tracks" the accent cleanly.
+                const brightPure = {
+                    h: base.h,
+                    s: clamp01(base.s * 1.03),
+                    l: clamp01(base.l + (1 - base.l) * 0.30)
+                };
+
+                // Surfaces: push harder into the shadow hue so the whole UI "goes deep"
+                // instead of drifting green/cyan in the lows.
+                const surfaceHue = hueLerp(
+                    base.h,
+                    SHADOW_HUE,
+                    clamp01(0.55 + 0.30 * dShadow) * shadowPull
+                );
+
+                const bg = {
+                    h: surfaceHue,
+                    s: clamp01(base.s * 0.24),
+                    l: 0.08
+                };
+                const stage = {
+                    h: surfaceHue,
+                    s: clamp01(base.s * 0.28),
+                    l: 0.10
+                };
+                const card = { ...stage, l: 0.13 };
+                const panel = { ...stage, l: 0.12 };
+
+                return {
+                    accent: hex,
+                    accentDark: rgbToHex(hslToRgb(dark)),
+                    accentBright: rgbToHex(hslToRgb(bright)),
+                    accentBrightPure: rgbToHex(hslToRgb(brightPure)),
+                    bg: rgbToHex(hslToRgb(bg)),
+                    stageBg: rgbToHex(hslToRgb(stage)),
+                    card: rgbToHex(hslToRgb(card)),
+                    panel: rgbToHex(hslToRgb(panel)),
+                };
+            }
+
+
+            // Mix two hex colors (t = 0..1 where 0 = a, 1 = b)
+            function mixHex(a, b, t) {
+                const ra = hexToRgb(a), rb = hexToRgb(b);
+                if (!ra || !rb) return a;
+                const lerp = (x, y) => x + (y - x) * t;
+                return rgbToHex({
+                    r: lerp(ra.r, rb.r),
+                    g: lerp(ra.g, rb.g),
+                    b: lerp(ra.b, rb.b)
+                });
+            }
+
+            function applyTheme(accentHex) {
+                const t = gradeAccent(accentHex);
+                if (!t) return;
+
+                root.style.setProperty('--theme-color', t.accent);
+                root.style.setProperty('--accent', t.accent);
+                root.style.setProperty('--accent-dark', t.accentDark);
+                root.style.setProperty('--accent-bright', t.accentBright);
+
+                root.style.setProperty('--bg', t.bg);
+                root.style.setProperty('--stage-bg', t.stageBg);
+                root.style.setProperty('--card', t.card);
+                root.style.setProperty('--panel', t.panel);
+
+                // Outside-of-GBA background (55% bg, 45% black)
+                const outsideBg = mixHex(t.bg, '#000000', 0.45);
+                root.style.setProperty('--outside-bg', outsideBg);
+
+                // Phase colors: keep work true, prep/rest muted off the graded dark.
+                root.style.setProperty('--work', t.accent);
+                root.style.setProperty('--round', t.accent);
+                root.style.setProperty('--rest', `color-mix(in srgb, ${t.accentDark} 55%, #808080)`);
+                root.style.setProperty('--prep', `color-mix(in srgb, ${t.accentDark} 35%, #808080)`);
+
+                // Chart: background matches outside-of-GBA; line uses graded bright.
+                root.style.setProperty('--chart-bg', outsideBg);
+                root.style.setProperty('--chart-line', t.accentBrightPure);
+                root.style.setProperty('--chart-grid', 'rgba(255,255,255,0.14)');
+            }
+
+            // Bigger ring radius
+            const ringRadius = 56;
+            const ringLen = 2 * Math.PI * ringRadius;
+            const outerRadius = 64;
+
+            // --- Audio helpers ---
+            let actx;
+            let muted = false;
+
+            function beep(freq = 1000, dur = 100) {
+                if (muted) return;
+                actx ||= new (window.AudioContext || window.webkitAudioContext)();
+                const osc = actx.createOscillator();
+                const g = actx.createGain();
+                g.gain.value = 0.25;
+                osc.frequency.value = freq;
+                osc.connect(g).connect(actx.destination);
+                osc.start();
+                osc.stop(actx.currentTime + dur / 1000);
+            }
+
+            function clickSound() { beep(700, 60); }
+            document.querySelectorAll('button,input,select').forEach(x => x.addEventListener('click', clickSound));
+
+            function playFiveBeepWarning() {
+                if (muted) return;
+                actx ||= new (window.AudioContext || window.webkitAudioContext)();
+                const now = actx.currentTime;
+                for (let i = 0; i < 5; i++) {
+                    const osc = actx.createOscillator();
+                    const g = actx.createGain();
+                    g.gain.value = 0.25;
+                    osc.frequency.value = 1000;
+                    osc.connect(g).connect(actx.destination);
+                    const startTime = now + i * 0.3;
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.1);
+                }
+            }
+
+            // SETTINGS PANEL TOGGLE
+            if (el.settingsToggle && el.settings) {
+                el.settingsToggle.addEventListener('click', () => {
+                    const isOpen = el.settings.classList.toggle('open');
+                    el.settingsToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                });
+            }
+
+            // SETTINGS CLOSE (button + ESC + click outside)
+            function closeSettings() {
+                if (!el.settings) return;
+                el.settings.classList.remove('open');
+                if (el.settingsToggle) el.settingsToggle.setAttribute('aria-expanded', 'false');
+            }
+
+            const settingsCloseBtn = document.querySelector('#settingsClose');
+            if (settingsCloseBtn) settingsCloseBtn.addEventListener('click', closeSettings);
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') closeSettings();
+            });
+
+            // Click the dark backdrop to close (not the panel)
+            if (el.settings) {
+                el.settings.addEventListener('mousedown', (e) => {
+                    if (e.target === el.settings) closeSettings();
+                });
+            }
+
+
+            // --- TEXT SIZE SLIDERS ---
+            // Baselines: READY 1.8, Time 1.0, Round 1.2, Next 1.2, HR 1.8
+            function bindSizeSlider(slider, label, cssVar, baseFactor) {
+                if (!slider || !label) return;
+                const base = baseFactor || 1;
+                const apply = () => {
+                    const v = parseFloat(slider.value) || 1;
+                    const eff = v * base;
+                    root.style.setProperty(cssVar, eff);
+                    label.textContent = v.toFixed(1) + '×';
+                };
+                slider.addEventListener('input', apply);
+                apply();
+            }
+
+            bindSizeSlider(el.phaseSize, el.phaseSizeVal, '--phase-scale', 1.8);
+            bindSizeSlider(el.clockSize, el.clockSizeVal, '--clock-scale', 1.0);
+            bindSizeSlider(el.roundSize, el.roundSizeVal, '--round-scale', 1.2);
+            bindSizeSlider(el.nextSize, el.nextSizeVal, '--next-scale', 1.2);
+            bindSizeSlider(el.hrSize, el.hrSizeVal, '--hr-scale', 1.8);
+
+            // --- TEMPO / HR zones (for guidance bar only) ---
+            const ZONE_RANGES = {
+                1: [0.50, 0.60],
+                2: [0.60, 0.70],
+                3: [0.70, 0.80],
+                4: [0.80, 0.90],
+                5: [0.90, 1.00],
+            };
+
+            let tempoCfg = {
+                enabled: true,
+                segmentsPerRound: 5,
+                maxZone: 4,
+                difficulty: 'medium',
+                hrMax: 185
+            };
+
+            // tempoDeck[roundIndex][segmentIndex] = { zone, pct, bpm }
+            let tempoDeck = [];
+            let currentTempoSegment = -1;
+            let lastWorkTotal = null;
+
+            function updateTempoBarVisibility() {
+                if (tempoCfg.enabled) {
+                    el.tempoBar.style.display = 'block';
+                    if (!el.tempoBar.textContent) {
+                        el.tempoBar.textContent = 'TEMPO';
+                    }
+                } else {
+                    el.tempoBar.style.display = 'none';
+                    el.tempoBar.textContent = '';
+                }
+            }
+
+            function makeTempoSegment(zone, hrMax, fineBias = null) {
+                const range = ZONE_RANGES[zone] || ZONE_RANGES[2];
+                const [lo, hi] = range;
+
+                let f;
+                if (fineBias === null) {
+                    f = 0.2 + Math.random() * 0.6;
+                } else {
+                    f = Math.max(0, Math.min(1, fineBias));
+                }
+
+                const pct = lo + (hi - lo) * f;
+                const bpm = Math.round(pct * hrMax);
+
+                return { zone, pct, bpm };
+            }
+
+            function buildTempoDeck(rounds, segmentsPerRound, maxZone, difficulty, hrMax) {
+                const deck = [];
+
+                const diffScale = difficulty === 'easy' ? 0.8 :
+                    difficulty === 'hard' ? 1.3 : 1.0;
+
+                for (let r = 0; r < rounds; r++) {
+                    if (segmentsPerRound <= 0) {
+                        deck.push([]);
+                        continue;
+                    }
+
+                    const baseProgress = (rounds > 1) ? (r / (rounds - 1)) : 1;
+
+                    let exp;
+                    if (rounds >= 10) exp = 2.2;
+                    else if (rounds >= 7) exp = 1.9;
+                    else if (rounds >= 5) exp = 1.6;
+                    else exp = 1.3;
+
+                    let ramp = Math.pow(baseProgress, exp);
+                    ramp = Math.min(1, Math.max(0, ramp * diffScale));
+
+                    let minZone = 2;
+
+                    let localMaxZone = maxZone;
+                    if (difficulty === 'easy') {
+                        if (ramp < 0.25) {
+                            localMaxZone = Math.min(maxZone, 2);
+                        } else if (ramp < 0.5) {
+                            localMaxZone = Math.min(maxZone, 3);
+                        }
+                    }
+
+                    if (r === 0) {
+                        localMaxZone = Math.min(localMaxZone, 3);
+                    }
+
+                    let pHigh = 0.05 + 0.55 * ramp;
+                    let pLow = 0.75 - 0.55 * ramp;
+                    let pMid = 1 - pLow - pHigh;
+
+                    const heavyStartIndex = Math.max(1, Math.floor(rounds * 0.6));
+                    if (r >= heavyStartIndex) {
+                        pHigh += 0.15;
+                        pLow -= 0.10;
+                    }
+
+                    pLow = Math.max(0.05, Math.min(0.9, pLow));
+                    pHigh = Math.max(0.05, Math.min(0.9, pHigh));
+                    pMid = Math.max(0, 1 - pLow - pHigh);
+                    const sum = pLow + pMid + pHigh;
+                    pLow /= sum;
+                    pMid /= sum;
+                    pHigh /= sum;
+
+                    const segments = [];
+
+                    for (let i = 0; i < segmentsPerRound; i++) {
+                        let zone;
+
+                        if (i === 0) {
+                            zone = minZone;
+                        } else if (i === segmentsPerRound - 1) {
+                            zone = (ramp > 0.5) ? localMaxZone : Math.min(localMaxZone, minZone + 1);
+                        } else {
+                            const u = Math.random();
+                            if (u < pLow) {
+                                zone = minZone;
+                            } else if (u < pLow + pMid) {
+                                zone = Math.min(localMaxZone - 1, minZone + 1);
+                            } else {
+                                zone = localMaxZone;
+                            }
+                        }
+
+                        zone = Math.max(minZone, Math.min(localMaxZone, zone));
+                        const seg = makeTempoSegment(zone, hrMax);
+                        segments.push(seg);
+                    }
+
+                    const fakeIndex = Math.floor(Math.random() * segmentsPerRound);
+                    const fakeSeg = segments[fakeIndex];
+                    if (fakeSeg) {
+                        if (fakeSeg.zone <= minZone + 1 && localMaxZone > fakeSeg.zone) {
+                            fakeSeg.zone = localMaxZone;
+                            Object.assign(fakeSeg, makeTempoSegment(fakeSeg.zone, hrMax));
+                        } else if (fakeSeg.zone >= localMaxZone - 1 && fakeSeg.zone > minZone) {
+                            fakeSeg.zone = minZone;
+                            Object.assign(fakeSeg, makeTempoSegment(fakeSeg.zone, hrMax));
+                        }
+                    }
+
+                    deck.push(segments);
+                }
+
+                return deck;
+            }
+
+            function drawTempoSegments(segments) {
+                const cont = el.tempoSegments;
+                cont.innerHTML = '';
+                if (!segments || segments < 2) return;
+
+                const innerR = ringRadius - 6;
+                const outerR = ringRadius + 2;
+                for (let i = 1; i < segments; i++) {
+                    const angle = 2 * Math.PI * (i / segments);
+
+                    const x1 = 70 + innerR * Math.cos(angle);
+                    const y1 = 70 + innerR * Math.sin(angle);
+                    const x2 = 70 + outerR * Math.cos(angle);
+                    const y2 = 70 + outerR * Math.sin(angle);
+
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', x1);
+                    line.setAttribute('y1', y1);
+                    line.setAttribute('x2', x2);
+                    line.setAttribute('y2', y2);
+                    line.setAttribute('stroke', '#555');
+                    line.setAttribute('stroke-width', '1.5');
+                    line.setAttribute('stroke-linecap', 'round');
+                    cont.appendChild(line);
+                }
+            }
+
+            function applyTempoSegment(segIndex) {
+                if (!tempoCfg.enabled) return;
+
+                const roundIndex = Math.min(Math.max(0, state.round), tempoDeck.length - 1);
+                const segments = tempoDeck[roundIndex] || [];
+                const seg = segments[segIndex] || segments[segments.length - 1];
+
+                if (!seg) return;
+
+                const { zone, bpm } = seg;
+                const text = `Z${zone} • ~${bpm} bpm`;
+
+                el.tempoBar.textContent = text;
+
+                beep(700 + zone * 60, 80);
+            }
+
+            // --- Timer config/state ---
+            let cfg = { prep: 30, work: 180, rest: 60, rounds: 5, cooldown: 180 };
+
+            function computeSessionTotalSeconds() {
+                const prep = parseInt(el.prep.value, 10) || 0;
+                const work = parseInt(el.work.value, 10) || 0;
+                const rest = parseInt(el.rest.value, 10) || 0;
+                const rounds = parseInt(el.rounds.value, 10) || 0;
+                const cooldown = parseInt(el.cooldown.value, 10) || 0;
+                return Math.max(0, prep + rounds * work + rounds * rest + cooldown);
+            }
+
+            let state = {
+                phase: 'Ready',
+                round: 0,
+                tLeft: cfg.prep,
+                tTotal: cfg.prep,
+                sessionLeft: computeSessionTotalSeconds(),
+                sessionTotal: computeSessionTotalSeconds(),
+                run: false,
+                last: null,
+                raf: null,
+                tenWarn: false
+            };
+
+            let lastBeep = null;
+
+            function drawSegments(rounds) {
+                const segContainer = el.roundSegments;
+                segContainer.innerHTML = '';
+                const totalAngle = 2 * Math.PI;
+                const gapAngle = 0.08;
+                const segAngle = (totalAngle - (gapAngle * rounds)) / rounds;
+
+                for (let i = 0; i < rounds; i++) {
+                    const startAngle = i * (segAngle + gapAngle);
+                    const endAngle = startAngle + segAngle;
+
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const x1 = 70 + outerRadius * Math.cos(startAngle);
+                    const y1 = 70 + outerRadius * Math.sin(startAngle);
+                    const x2 = 70 + outerRadius * Math.cos(endAngle);
+                    const y2 = 70 + outerRadius * Math.sin(endAngle);
+                    const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
+
+                    const d = `M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2} ${y2}`;
+                    path.setAttribute('d', d);
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke', 'var(--round)');
+                    path.setAttribute('stroke-width', '3');
+                    path.setAttribute('stroke-linecap', 'butt');
+                    path.setAttribute('opacity', '0.2');
+                    segContainer.appendChild(path);
+                }
+            }
+
+            function updateSegments(round) {
+                const segs = el.roundSegments.querySelectorAll('path');
+                segs.forEach((s, i) => { s.setAttribute('opacity', i < round ? '1' : '0.2'); });
+            }
+
+            drawSegments(cfg.rounds);
+
+            function fmt(s) {
+                s = Math.max(0, Math.round(s));
+                const m = Math.floor(s / 60).toString().padStart(2, '0');
+                const sec = (s % 60).toString().padStart(2, '0');
+                return `${m}:${sec}`;
+            }
+
+            function updateSessionTimeDisplay() {
+                if (state.sessionTotal > 0) {
+                    const clamped = Math.max(0, state.sessionLeft);
+                    el.sessionTime.textContent = 'Session: ' + fmt(clamped);
+                } else {
+                    el.sessionTime.textContent = 'Session: 00:00';
+                }
+            }
+
+            function setPhase(p) {
+                state.phase = p;
+                el.phase.textContent = p;
+
+                let col = 'var(--accent)';
+                if (p === 'Prep') col = 'var(--prep)';
+                if (p === 'Work') col = 'var(--work)';
+                if (p === 'Rest') col = 'var(--rest)';
+                if (p === 'Cooldown') col = 'var(--rest)';
+
+                el.progress.style.stroke = col;
+                if (p !== 'Cooldown') beep(p === 'Work' ? 900 : 600, 200);
+
+                const stage = document.querySelector('.pixel-stage');
+                if (p === 'Work') stage.classList.add('glow-pulse');
+                else stage.classList.remove('glow-pulse');
+
+                if (p === 'Prep') {
+                    state.tTotal = cfg.prep;
+                    state.tLeft = cfg.prep;
+                    el.nextInfo.textContent = 'Next: Work';
+                    if (tempoCfg.enabled) el.tempoBar.textContent = 'TEMPO';
+                } else if (p === 'Work') {
+                    state.tTotal = cfg.work;
+                    state.tLeft = cfg.work;
+                    el.nextInfo.textContent = cfg.rest > 0 ? 'Next: Rest' : 'Next: Work';
+                    state.tenWarn = false;
+                    currentTempoSegment = -1;
+                    lastWorkTotal = cfg.work;
+                } else if (p === 'Rest') {
+                    state.tTotal = cfg.rest;
+                    state.tLeft = cfg.rest;
+                    state.round++;
+                    updateSegments(state.round);
+                    if (state.round >= cfg.rounds) {
+                        el.nextInfo.textContent = cfg.cooldown > 0 ? 'Next: Cooldown' : 'Next: Done';
+                    } else {
+                        el.nextInfo.textContent = 'Next: Work';
+                    }
+                    if (tempoCfg.enabled) el.tempoBar.textContent = 'TEMPO';
+                } else if (p === 'Cooldown') {
+                    state.tTotal = cfg.cooldown;
+                    state.tLeft = cfg.cooldown;
+                    el.nextInfo.textContent = 'Next: Done';
+                    // no tempo during cooldown
+                    el.tempoBar.textContent = '';
+                }
+            }
+
+            function update() {
+                el.clock.textContent = fmt(state.tLeft);
+
+                const f = state.tTotal > 0 ? (state.tLeft / state.tTotal) : 0;
+                el.progress.style.strokeDasharray = ringLen;
+                el.progress.style.strokeDashoffset = -ringLen * (1 - f);
+
+                el.roundInfo.textContent = `ROUND ${Math.min(state.round, cfg.rounds)} / ${cfg.rounds}`;
+                updateSessionTimeDisplay();
+            }
+
+            // --- HEART BEAT (smooth, no restarts) ---
+            const heartAnim = {
+                targetBpm: 0,
+                bpm: 0,
+                phase: 0,     // in beats
+                lastTs: null
+            };
+
+            // Smoothing time-constant (seconds). Smaller = snappier, larger = smoother.
+            const HEART_SMOOTH_TAU = 0.35;
+
+            function pulseShape(p) {
+                // p: 0..1 within a beat
+                // Quick "thump" then decay. Looks punchy without snapping.
+                const attack = 0.22;
+
+                if (p < attack) {
+                    const x = p / attack; // 0..1
+                    const s = Math.sin(Math.PI * x);
+                    return s * s; // 0..1
+                }
+
+                const d = p - attack; // 0..(1-attack)
+                return Math.exp(-6 * d); // smooth decay
+            }
+
+            function stepHeart(ts) {
+                if (heartAnim.lastTs == null) heartAnim.lastTs = ts;
+                const dt = Math.min(0.05, Math.max(0, (ts - heartAnim.lastTs) / 1000)); // clamp dt
+                heartAnim.lastTs = ts;
+
+                const tgt = heartAnim.targetBpm > 0 ? heartAnim.targetBpm : 0;
+
+                // Smooth BPM changes: exponential moving average
+                const a = 1 - Math.exp(-dt / HEART_SMOOTH_TAU);
+                heartAnim.bpm = heartAnim.bpm + (tgt - heartAnim.bpm) * a;
+
+                if (heartAnim.bpm <= 0.1) {
+                    heartAnim.phase = 0;
+                    el.hrHeart.style.transform = 'scale(1)';
+                    requestAnimationFrame(stepHeart);
+                    return;
+                }
+
+                // Advance phase in "beats"
+                heartAnim.phase += dt * (heartAnim.bpm / 60);
+
+                const p = heartAnim.phase % 1;          // 0..1 within a beat
+                const pulse = pulseShape(p);            // 0..1
+                const amp = 0.25;                       // beat size (0.25 = +25% at peak)
+                const scale = 1 + amp * pulse;
+
+                el.hrHeart.style.transform = `scale(${scale})`;
+
+                requestAnimationFrame(stepHeart);
+            }
+
+            // Start once; it runs forever, just reacts to targetBpm
+            requestAnimationFrame(stepHeart);
+
+            // HR recording rates
+            const HR_GRAPH_HZ = 30;                 // live graph update rate
+            const HR_GRAPH_MS = 1000 / HR_GRAPH_HZ; // 33.333ms
+            const HR_EXPORT_MS = 1000;              // keep CSV at 1 Hz (readable)
+
+
+            // --- HEART RATE (Web Bluetooth + logging) ---
+            const hrState = {
+                device: null,
+                server: null,
+                char: null,
+                connected: false,
+                currentHr: null,
+
+                // 30 Hz samples for live chart
+                samples: [],
+
+                // 1 Hz samples for CSV (integer seconds, no drift)
+                exportSamples: [],
+                lastExportSec: null,
+
+                lastLogTs: null,
+
+                // Recording can run even when the timer has not started yet.
+                // We log while connected, tagging pre-start samples as "no_round".
+                recordStartTs: null,
+                lastRecordTs: null,
+                lastExportTs: null,
+
+                minHr: null,
+                maxHr: null
+            };
+
+
+            function updateHrUi() {
+                const hr = hrState.currentHr;
+
+                // Settings panel display
+                el.hrValue.textContent = hr != null ? hr : '--';
+                el.hrStatus.textContent = hrState.connected ? 'Connected' : 'Not connected';
+                const minStr = hrState.minHr != null ? hrState.minHr : '--';
+                const maxStr = hrState.maxHr != null ? hrState.maxHr : '--';
+                // HUD min/max (under the HR graph)
+                if (el.hrMinHud) el.hrMinHud.textContent = minStr;
+                if (el.hrMaxHud) el.hrMaxHud.textContent = maxStr;
+
+                el.hrMinMax.textContent = `Min: ${minStr}  Max: ${maxStr}`;
+
+                // Reticle display (number only)
+                el.hrReticleValue.textContent = hr != null ? `${hr}` : '--';
+                const digits = (hr != null) ? String(hr).length : 2;
+                el.hrReticleValue.closest('.hr-reticle')?.setAttribute('data-digits', digits >= 3 ? '3' : '2');
+
+                // Heart beat target (smooth animator handles the rest)
+                heartAnim.targetBpm = (hr != null && hr > 0) ? hr : 0;
+
+            }
+
+            function handleHrValue(hr) {
+                hrState.currentHr = hr;
+                if (hrState.minHr == null || hr < hrState.minHr) hrState.minHr = hr;
+                if (hrState.maxHr == null || hr > hrState.maxHr) hrState.maxHr = hr;
+
+                // Always record HR while connected (even if timer isn't running yet).
+                // This builds a buffer for the live graph and exports, without affecting rounds.
+                if (hrState.connected && hr != null) {
+                    const now = performance.now();
+                    if (hrState.recordStartTs == null) hrState.recordStartTs = now;
+                    // ---- 30 Hz samples for live graph ----
+                    if (hrState.lastRecordTs == null || (now - hrState.lastRecordTs) >= HR_GRAPH_MS) {
+                        hrState.lastRecordTs = now;
+                        const tSec = (now - hrState.recordStartTs) / 1000;
+
+                        const roundTag = state.run ? state.round : 'no_round';
+                        const phaseTag = state.run ? state.phase : 'no_round';
+                        const tLeftTag = state.run ? state.tLeft : 0;
+
+                        hrState.samples.push({
+                            t: tSec,
+                            phase: phaseTag,
+                            round: roundTag,
+                            tLeft: tLeftTag,
+                            hr
+                        });
+                    }
+
+                    // ---- 1 Hz export buffer (integer seconds, no drift) ----
+                    if (hrState.lastExportSec == null) hrState.lastExportSec = -1;
+
+                    const curSec = Math.floor((now - hrState.recordStartTs) / 1000);
+
+                    // Fill any missing whole seconds up to curSec (keeps time perfectly aligned)
+                    while (hrState.lastExportSec < curSec) {
+                        hrState.lastExportSec++;
+
+                        const sec = hrState.lastExportSec;
+
+                        const roundTag = state.run ? state.round : 'no_round';
+                        const phaseTag = state.run ? state.phase : 'no_round';
+
+                        // Estimate tLeft for backfilled seconds (more accurate than using "now" for all)
+                        const estTLeft = state.run ? (state.tLeft + (curSec - sec)) : 0;
+                        const tLeftTag = state.run ? Math.max(0, Math.round(estTLeft)) : 0;
+
+                        hrState.exportSamples.push({
+                            t: sec,             // <-- exact integer seconds
+                            phase: phaseTag,
+                            round: roundTag,
+                            tLeft: tLeftTag,
+                            hr
+                        });
+                    }
+
+                    // keep your old timestamps meaningful if you still want them around
+                    hrState.lastExportTs = now;
+                    hrState.lastLogTs = now;
+
+
+                }
+
+                updateHrUi();
+                drawHrChart();
+            }
+
+            function onHrDisconnected() {
+                hrState.connected = false;
+                hrState.device = null;
+                hrState.server = null;
+                hrState.char = null;
+                hrState.recordStartTs = null;
+                hrState.lastRecordTs = null;
+                hrState.lastExportTs = null;
+
+                hrState.exportSamples = [];
+                hrState.lastExportSec = null;
+
+                heartAnim.targetBpm = 0;
+                updateHrUi();
+
+            }
+
+            async function connectHr() {
+                try {
+                    if (!navigator.bluetooth) {
+                        alert('Web Bluetooth is not available in this browser.');
+                        return;
+                    }
+                    el.hrStatus.textContent = 'Scanning...';
+                    const device = await navigator.bluetooth.requestDevice({
+                        filters: [{ services: ['heart_rate'] }]
+                    });
+                    hrState.device = device;
+                    device.addEventListener('gattserverdisconnected', onHrDisconnected);
+
+                    const server = await device.gatt.connect();
+                    hrState.server = server;
+                    const service = await server.getPrimaryService('heart_rate');
+                    const characteristic = await service.getCharacteristic('heart_rate_measurement');
+                    hrState.char = characteristic;
+
+                    await characteristic.startNotifications();
+                    characteristic.addEventListener('characteristicvaluechanged', handleHrNotification);
+
+                    hrState.connected = true;
+                    updateHrUi();
+                } catch (err) {
+                    console.error(err);
+                    el.hrStatus.textContent = 'Not connected';
+                    alert('Could not connect to HR monitor: ' + err.message);
+                }
+            }
+
+            function handleHrNotification(event) {
+                const value = event.target.value;
+                const flags = value.getUint8(0);
+                const hr16Bits = flags & 0x1;
+
+                let hr;
+                if (hr16Bits) hr = value.getUint16(1, true);
+                else hr = value.getUint8(1);
+
+                handleHrValue(hr);
+            }
+
+            function exportHrCsv() {
+                if (!hrState.exportSamples.length) {
+                    alert('No HR data recorded this session.');
+                    return;
+                }
+                const profile = loadProfile();
+                const profileMax = computeMaxHr(profile);
+                const maxHrSetting = parseInt(el.maxHr?.value || '', 10);
+                const maxHrValue = isFinite(profileMax) ? profileMax : (isFinite(maxHrSetting) ? maxHrSetting : '');
+                const sessionType = el.sessionType?.value || 'mixed';
+                const metaLines = [
+                    '#hr_timer_export=1',
+                    `#exported_at=${new Date().toISOString()}`,
+                    `#max_hr=${maxHrValue}`,
+                    `#name=${profile?.name || ''}`,
+                    `#age=${profile?.age || ''}`,
+                    `#sex=${profile?.sex || ''}`,
+                    `#height_cm=${profile?.height_cm || ''}`,
+                    `#weight_kg=${profile?.weight_kg || ''}`,
+                    `#session_type=${sessionType}`,
+                    `#rounds=${cfg.rounds}`,
+                    `#work_s=${cfg.work}`,
+                    `#rest_s=${cfg.rest}`,
+                    `#prep_s=${cfg.prep}`,
+                    `#cooldown_s=${cfg.cooldown}`
+                ].join('\n') + '\n';
+                const header = 'time_s,phase,round,time_left_s,hr_bpm\n';
+                const lines = hrState.exportSamples.map(s =>
+                    `${s.t},${s.phase},${s.round},${s.tLeft},${s.hr}`
+                );
+
+                const csv = metaLines + header + lines.join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const now = new Date();
+                const mm = String(now.getMonth() + 1).padStart(2, '0');
+                const dd = String(now.getDate()).padStart(2, '0');
+                const yy = String(now.getFullYear()).slice(-2);
+                const rounds = parseInt(el.rounds?.value || cfg.rounds || 0, 10) || 0;
+                const nameRaw = (profile?.name || 'Fighter').trim();
+                const nameSafe = nameRaw ? nameRaw.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') : 'Fighter';
+                const typeRaw = (el.sessionType?.value || 'mixed').trim();
+                const typeSafe = typeRaw.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '');
+                a.download = `${nameSafe}_${mm}_${dd}_${yy}_${typeSafe}_${rounds}R.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            el.hrConnect.addEventListener('click', connectHr);
+            el.hrExport.addEventListener('click', exportHrCsv);
+            updateHrUi();
+
+
+            // --- HR CHART (live, always visible) ---
+            const hrChart = {
+                canvas: el.hrChart,
+                ctx: null,
+                maxSeconds: 480  // last 8 minutes
+            };
+
+            const hrFullChart = {
+                canvas: el.hrChartFull,
+                ctx: null
+            };
+
+            function initFullHrChart() {
+                if (!hrFullChart.canvas) return;
+
+                const rect = hrFullChart.canvas.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return;
+
+                const cssW = Math.round(rect.width);
+                const cssH = Math.round(rect.height);
+
+                const dpr = window.devicePixelRatio || 1;
+                const EXTRA_SCALE = 2;               // match initHrChart
+                const scale = dpr * EXTRA_SCALE;
+
+                hrFullChart.canvas.width = Math.round(cssW * scale);
+                hrFullChart.canvas.height = Math.round(cssH * scale);
+
+                hrFullChart.canvas.style.width = cssW + "px";
+                hrFullChart.canvas.style.height = cssH + "px";
+
+                const ctx = hrFullChart.canvas.getContext("2d");
+                hrFullChart.ctx = ctx;
+
+                // draw in CSS pixel coords
+                ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+                // store CSS-space dims (optional, but helps keep math consistent)
+                hrFullChart.cssW = cssW;
+                hrFullChart.cssH = cssH;
+            }
+
+
+            function isHrModalOpen() {
+                return !!(el.hrModal && el.hrModal.classList.contains('open'));
+            }
+
+            function openHrModal() {
+                if (!el.hrModal) return;
+                // If settings is open, don't stack modals
+                if (el.settings && el.settings.classList.contains('open')) return;
+
+                el.hrModal.classList.add('open');
+                el.hrModal.setAttribute('aria-hidden', 'false');
+                initFullHrChart();
+                drawFullHrChart();
+            }
+
+            function closeHrModal() {
+                if (!el.hrModal) return;
+                el.hrModal.classList.remove('open');
+                el.hrModal.setAttribute('aria-hidden', 'true');
+            }
+
+
+            function initHrChart() {
+                if (!hrChart.canvas) return;
+
+                const rect = hrChart.canvas.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return;
+
+                // CSS size (layout size)
+                const cssW = Math.round(rect.width);
+                const cssH = Math.round(rect.height);
+
+                // Backing store scale:
+                // - devicePixelRatio fixes HiDPI blur
+                // - EXTRA_SCALE gives you the "2× resolution" you asked for
+                const dpr = window.devicePixelRatio || 1;
+                const EXTRA_SCALE = 2;
+                const scale = dpr * EXTRA_SCALE;
+
+                // Set backing store size (actual pixels)
+                hrChart.canvas.width = Math.round(cssW * scale);
+                hrChart.canvas.height = Math.round(cssH * scale);
+
+                // Keep CSS size unchanged
+                hrChart.canvas.style.width = cssW + "px";
+                hrChart.canvas.style.height = cssH + "px";
+
+                const ctx = hrChart.canvas.getContext("2d");
+                hrChart.ctx = ctx;
+
+                // Draw in CSS pixel coordinates, but backed by a larger buffer
+                ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+                // Store CSS-space dims so drawHrChart can use them
+                hrChart.cssW = cssW;
+                hrChart.cssH = cssH;
+            }
+
+            // Open fullscreen HR graph on click
+            if (el.hrGraphContainer) {
+                el.hrGraphContainer.addEventListener('click', openHrModal);
+                el.hrGraphContainer.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openHrModal();
+                    }
+                });
+            }
+
+            // Close button
+            if (el.hrModalClose) {
+                el.hrModalClose.addEventListener('click', closeHrModal);
+            }
+
+            // Click-off (backdrop area)
+            if (el.hrModal) {
+                el.hrModal.addEventListener('mousedown', (e) => {
+                    // If you clicked outside the panel, close
+                    const panel = el.hrModal.querySelector('.hr-modal-panel');
+                    if (panel && !panel.contains(e.target)) closeHrModal();
+                });
+            }
+
+            // ESC closes fullscreen HR too
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && isHrModalOpen()) closeHrModal();
+            });
+
+
+            window.addEventListener('resize', initHrChart);
+            window.addEventListener('resize', () => {
+                if (isHrModalOpen()) initFullHrChart();
+            });
+
+            initHrChart();
+
+
+            function drawHrChart() {
+                if (!hrChart.ctx || !hrChart.canvas) return;
+                const ctx = hrChart.ctx;
+                const canvas = hrChart.canvas;
+                const width = hrChart.cssW || canvas.width;
+                const height = hrChart.cssH || canvas.height;
+
+
+                ctx.clearRect(0, 0, width, height);
+
+                // Pull theme colors from CSS vars (so the chart follows your accent grading)
+                const cs = getComputedStyle(root);
+                const chartBg = (cs.getPropertyValue('--chart-bg') || '').trim() || '#111';
+                const chartGrid = (cs.getPropertyValue('--chart-grid') || '').trim() || '#333';
+                const chartLine = (cs.getPropertyValue('--chart-line') || '').trim() || '#56a0ff';
+
+                const accentHex = (cs.getPropertyValue('--accent') || '').trim() || '#56a0ff';
+                const accentRgb = hexToRgb(accentHex) || { r: 86, g: 160, b: 255 };
+                const roundTint = `rgba(${accentRgb.r}, ${accentRgb.g}, ${accentRgb.b}, 0.10)`;
+
+                // Background
+                ctx.fillStyle = chartBg;
+                ctx.fillRect(0, 0, width, height);
+
+                const samples = hrState.samples;
+                if (!samples.length) return;
+
+                const latest = samples[samples.length - 1];
+                const nowT = latest.t;
+                const earliestT = samples[0].t;
+                const windowStart = Math.max(earliestT, nowT - hrChart.maxSeconds);
+
+                // Window span grows with recording time until it hits 10 minutes.
+                const windowSpan = Math.max(1e-6, (nowT - windowStart));
+
+                const visible = samples.filter(s => s.t >= windowStart);
+                if (!visible.length) return;
+
+                const hrCeil = parseInt(el.maxHr.value, 10) || 185;
+
+                // Visible-window min/max (includes current HR since it's part of visible)
+                let vMin = Infinity;
+                let vMax = -Infinity;
+                for (const s of visible) {
+                    if (s.hr == null) continue;
+                    if (s.hr < vMin) vMin = s.hr;
+                    if (s.hr > vMax) vMax = s.hr;
+                }
+                if (!isFinite(vMin) || !isFinite(vMax)) return;
+
+                // Desired dynamic bounds
+                let hrMinPlot = Math.floor(vMin - 5);
+                let hrMaxPlot = Math.ceil(vMax + 5);
+
+                // Absolute ceiling: never show above MAX HR
+                hrMaxPlot = Math.min(hrCeil, hrMaxPlot);
+
+                // Safety: keep sane lower bound and non-zero range
+                hrMinPlot = Math.max(30, hrMinPlot);                 // don't dip into nonsense
+                hrMinPlot = Math.min(hrMinPlot, hrMaxPlot - 10);     // enforce at least 10 bpm range
+
+                let hrRange = hrMaxPlot - hrMinPlot;
+                if (hrRange < 25) {
+                    // If range is too tight, expand around the current window
+                    const mid = (hrMinPlot + hrMaxPlot) / 2;
+                    hrMinPlot = Math.max(30, Math.floor(mid - 12.5));
+                    hrMaxPlot = Math.min(hrCeil, Math.ceil(mid + 12.5));
+                    hrRange = Math.max(1, hrMaxPlot - hrMinPlot);
+                }
+
+                // Tighter inner padding so the plot uses more of the canvas width
+                const padLeft = 24;   // still enough room for 2–3 digit HR labels
+                const padRight = 2;
+                const padTop = 10;
+                const padBottom = 18;
+
+
+                const plotW = width - padLeft - padRight;
+                const plotH = height - padTop - padBottom;
+
+                // --- Tint ONLY the time ranges that are inside Work segments (not the whole graph) ---
+                const windowEnd = windowStart + windowSpan;
+                const workSegs = collectWorkSegments(samples); // use full sample list so segment edges are correct
+
+                // Clip drawing to plot area so labels never spill into axes
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(padLeft, padTop, plotW, plotH);
+                ctx.clip();
+
+                for (const seg of workSegs) {
+                    // Clip segment to the currently visible window
+                    const a = Math.max(windowStart, seg.start);
+                    const b = Math.min(windowEnd, seg.end);
+                    if (b <= a) continue;
+
+                    const x1 = padLeft + ((a - windowStart) / windowSpan) * plotW;
+                    const x2 = padLeft + ((b - windowStart) / windowSpan) * plotW;
+                    const w = Math.max(0, x2 - x1);
+
+                    // 10% accent tint for this Work span
+                    ctx.fillStyle = roundTint;
+                    ctx.fillRect(x1, padTop, w, plotH);
+
+                    // Label centered in this span (only if there's room)
+                    if (w >= 44 && seg.round != null) {
+                        ctx.font = '9px system-ui';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'top';
+                        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+                        ctx.fillText(`ROUND ${seg.round + 1}`, x1 + w / 2, padTop + 2);
+                    }
+                }
+
+                ctx.restore();
+
+
+                // ---- X-axis time helpers (relative to the visible window) ----
+                const fmtMMSS = (sec) => {
+                    sec = Math.max(0, Math.round(sec));
+                    const m = Math.floor(sec / 60);
+                    const s = sec % 60;
+                    return `${m}:${String(s).padStart(2, '0')}`;
+                };
+
+                // Choose tick spacing based on how wide the visible window is.
+                // (Small graph on the right = keep labels sparse)
+                let tickStep = 60;            // default 1 min
+                if (windowSpan <= 90) tickStep = 15;
+                else if (windowSpan <= 180) tickStep = 30;
+                else if (windowSpan <= 360) tickStep = 60;
+                else if (windowSpan <= 720) tickStep = 120;   // 2 min
+                else tickStep = 300;                           // 5 min
+
+
+                // Grid lines (min, mid, max)
+                ctx.strokeStyle = chartGrid;
+                ctx.lineWidth = 1;
+
+                const drawGridLine = (hrVal) => {
+                    const y = padTop + (1 - ((hrVal - hrMinPlot) / hrRange)) * plotH;
+                    ctx.beginPath();
+                    ctx.moveTo(padLeft, y);
+                    ctx.lineTo(width - padRight, y);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#777';
+                    ctx.font = '10px system-ui';
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(hrVal.toString(), padLeft - 4, y);
+                };
+
+                // 5 horizontal grid lines: 0%, 25%, 50%, 75%, 100%
+                for (let i = 0; i < 5; i++) {
+                    const t = i / 4; // 0, .25, .5, .75, 1
+                    const hrVal = Math.round(hrMinPlot + hrRange * t);
+                    drawGridLine(hrVal);
+                }
+
+
+                // ---- X-axis time scale (ABSOLUTE time, sliding window) ----
+                ctx.strokeStyle = chartGrid;
+                ctx.lineWidth = 1;
+
+                // First tick at/after windowStart aligned to tickStep boundaries
+                let firstTick = Math.ceil(windowStart / tickStep) * tickStep;
+
+                // If we’re very early (windowStart ~ 0), ensure we show 0:00
+                if (windowStart < 1e-6) firstTick = 0;
+
+                for (let tAbs = firstTick; tAbs <= windowEnd + 1e-6; tAbs += tickStep) {
+                    const x = padLeft + ((tAbs - windowStart) / windowSpan) * plotW;
+
+                    // vertical grid line
+                    ctx.beginPath();
+                    ctx.moveTo(x, padTop);
+                    ctx.lineTo(x, padTop + plotH);
+                    ctx.stroke();
+
+                    // label (absolute elapsed session time)
+                    ctx.fillStyle = '#777';
+                    ctx.font = '10px system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(fmtMMSS(tAbs), x, padTop + plotH + 4);
+                }
+
+
+                // HR polyline (shorten ONLY the last segment so it doesn't run under the tail marker)
+                const markerR = 3;
+                const tailGap = markerR + 4; // how much "air" before the dot
+
+                ctx.strokeStyle = chartLine;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                let prevX = null, prevY = null;
+
+                for (let i = 0; i < visible.length; i++) {
+                    const s = visible[i];
+                    const t = s.t;
+                    const hr = s.hr;
+
+                    let x = padLeft + ((t - windowStart) / windowSpan) * plotW;
+                    const clampedHr = Math.max(hrMinPlot, Math.min(hrMaxPlot, hr));
+                    let y = padTop + (1 - ((clampedHr - hrMinPlot) / hrRange)) * plotH;
+
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                        prevX = x; prevY = y;
+                        continue;
+                    }
+
+                    // If this is the LAST point, shorten the segment from (prev -> last) by tailGap,
+                    // so the line ends a bit before the marker without looking disconnected.
+                    if (i === visible.length - 1) {
+                        const dx = x - prevX;
+                        const dy = y - prevY;
+                        const len = Math.hypot(dx, dy);
+
+                        if (len > 1e-6) {
+                            // Don’t overshoot: if segment is shorter than tailGap, shorten by at most 40% of len
+                            const cut = Math.min(tailGap, len * 0.4);
+                            const ux = dx / len;
+                            const uy = dy / len;
+                            x = x - ux * cut;
+                            y = y - uy * cut;
+                        }
+                    }
+
+                    ctx.lineTo(x, y);
+                    prevX = x; prevY = y;
+                }
+
+                ctx.stroke();
+
+
+                // Current HR marker
+                let lastX = padLeft + ((latest.t - windowStart) / windowSpan) * plotW;
+
+                // keep the marker fully inside the plot area
+                lastX = Math.max(padLeft + markerR, Math.min((width - padRight) - markerR, lastX));
+
+                const lastClampedHr = Math.max(hrMinPlot, Math.min(hrMaxPlot, latest.hr));
+                const lastY = padTop + (1 - ((lastClampedHr - hrMinPlot) / hrRange)) * plotH;
+
+                // Marker inherits the accent (with a tiny contrast stroke)
+                ctx.fillStyle = chartLine;
+                ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(lastX, lastY, markerR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                // If fullscreen is open, keep it updated too
+                if (isHrModalOpen()) {
+                    initFullHrChart();
+                    drawFullHrChart();
+                }
+
+            }
+
+            // Build time segments where samples are in Work.
+            // Returns [{ start, end, round }] in seconds, using sample tags.
+            function collectWorkSegments(samples) {
+                const segs = [];
+                let cur = null;
+
+                for (let i = 0; i < samples.length; i++) {
+                    const s = samples[i];
+                    const t = s?.t;
+                    if (typeof t !== 'number') continue;
+
+                    const isWork = (s.phase === 'Work');
+
+                    if (isWork) {
+                        if (!cur) {
+                            cur = {
+                                start: t,
+                                end: t,
+                                round: (typeof s.round === 'number') ? s.round : null
+                            };
+                        }
+                        cur.end = t;
+                    } else {
+                        if (cur) {
+                            // close segment at the transition time
+                            cur.end = t;
+                            segs.push(cur);
+                            cur = null;
+                        }
+                    }
+                }
+
+                // If we're currently still in Work at the end of the array, close at last sample time.
+                if (cur) {
+                    const lastT = samples[samples.length - 1]?.t;
+                    cur.end = (typeof lastT === 'number') ? lastT : cur.end;
+                    segs.push(cur);
+                }
+
+                return segs;
+            }
+
+
+            function pickNiceTickStep(spanSec, maxTicks) {
+                const steps = [5, 10, 15, 30, 60, 120, 300, 600, 900, 1200, 1800, 3600, 7200, 10800];
+                for (const s of steps) {
+                    if (spanSec / s <= maxTicks) return s;
+                }
+                return steps[steps.length - 1];
+            }
+
+            function drawFullHrChart() {
+                if (!hrFullChart.ctx || !hrFullChart.canvas) return;
+
+                const ctx = hrFullChart.ctx;
+                const canvas = hrFullChart.canvas;
+                const width = hrFullChart.cssW || canvas.width;
+                const height = hrFullChart.cssH || canvas.height;
+
+                ctx.clearRect(0, 0, width, height);
+
+                const cs = getComputedStyle(root);
+                const chartBg = (cs.getPropertyValue('--chart-bg') || '').trim() || '#111';
+                const chartGrid = (cs.getPropertyValue('--chart-grid') || '').trim() || '#333';
+                const chartLine = (cs.getPropertyValue('--chart-line') || '').trim() || '#56a0ff';
+
+                const accentHex = (cs.getPropertyValue('--accent') || '').trim() || '#56a0ff';
+                const accentRgb = hexToRgb(accentHex) || { r: 86, g: 160, b: 255 };
+                const roundTint = `rgba(${accentRgb.r}, ${accentRgb.g}, ${accentRgb.b}, 0.10)`;
+
+                // Background
+                ctx.fillStyle = chartBg;
+                ctx.fillRect(0, 0, width, height);
+
+                const samples = hrState.samples;
+                if (!samples.length) return;
+
+                const latest = samples[samples.length - 1];
+                const earliest = samples[0];
+
+                const windowStart = earliest.t;           // FULL HISTORY
+                const windowSpan = Math.max(1e-6, latest.t - earliest.t);
+
+                // Full-range min/max
+                let vMin = Infinity, vMax = -Infinity;
+                for (const s of samples) {
+                    if (s.hr == null) continue;
+                    if (s.hr < vMin) vMin = s.hr;
+                    if (s.hr > vMax) vMax = s.hr;
+                }
+                if (!isFinite(vMin) || !isFinite(vMax)) return;
+
+                const hrCeil = parseInt(el.maxHr.value, 10) || 185;
+
+                let hrMinPlot = Math.floor(vMin - 5);
+                let hrMaxPlot = Math.ceil(vMax + 5);
+                hrMaxPlot = Math.min(hrCeil, hrMaxPlot);
+                hrMinPlot = Math.max(30, hrMinPlot);
+                hrMinPlot = Math.min(hrMinPlot, hrMaxPlot - 10);
+
+                let hrRange = hrMaxPlot - hrMinPlot;
+                if (hrRange < 25) {
+                    const mid = (hrMinPlot + hrMaxPlot) / 2;
+                    hrMinPlot = Math.max(30, Math.floor(mid - 12.5));
+                    hrMaxPlot = Math.min(hrCeil, Math.ceil(mid + 12.5));
+                    hrRange = Math.max(1, hrMaxPlot - hrMinPlot);
+                }
+
+                const padLeft = 34;
+                const padRight = 10;
+                const padTop = 14;
+                const padBottom = 22;
+
+                const plotW = width - padLeft - padRight;
+                const plotH = height - padTop - padBottom;
+
+                // --- Tint ONLY the time ranges that are inside Work segments (not the whole graph) ---
+                const windowEnd = windowStart + windowSpan;
+                const workSegs = collectWorkSegments(samples);
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(padLeft, padTop, plotW, plotH);
+                ctx.clip();
+
+                for (const seg of workSegs) {
+                    const a = Math.max(windowStart, seg.start);
+                    const b = Math.min(windowEnd, seg.end);
+                    if (b <= a) continue;
+
+                    const x1 = padLeft + ((a - windowStart) / windowSpan) * plotW;
+                    const x2 = padLeft + ((b - windowStart) / windowSpan) * plotW;
+                    const w = Math.max(0, x2 - x1);
+
+                    ctx.fillStyle = roundTint;
+                    ctx.fillRect(x1, padTop, w, plotH);
+
+                    if (w >= 60 && seg.round != null) {
+                        ctx.font = '10px system-ui';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'top';
+                        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+                        ctx.fillText(`ROUND ${seg.round + 1}`, x1 + w / 2, padTop + 2);
+                    }
+                }
+
+                ctx.restore();
+
+
+                const fmtMMSS = (sec) => {
+                    sec = Math.max(0, Math.round(sec));
+                    const m = Math.floor(sec / 60);
+                    const s = sec % 60;
+                    return `${m}:${String(s).padStart(2, '0')}`;
+                };
+
+                // Grid lines (5)
+                ctx.strokeStyle = chartGrid;
+                ctx.lineWidth = 1;
+
+                const drawGridLine = (hrVal) => {
+                    const y = padTop + (1 - ((hrVal - hrMinPlot) / hrRange)) * plotH;
+                    ctx.beginPath();
+                    ctx.moveTo(padLeft, y);
+                    ctx.lineTo(width - padRight, y);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#777';
+                    ctx.font = '10px system-ui';
+                    ctx.textAlign = 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(hrVal.toString(), padLeft - 6, y);
+                };
+
+                for (let i = 0; i < 5; i++) {
+                    const t = i / 4;
+                    const hrVal = Math.round(hrMinPlot + hrRange * t);
+                    drawGridLine(hrVal);
+                }
+
+                // X ticks: cap count so it stays readable
+                const tickStep = pickNiceTickStep(windowSpan, 8);
+
+                for (let t = 0; t <= windowSpan + 1e-6; t += tickStep) {
+                    const x = padLeft + (t / windowSpan) * plotW;
+
+                    ctx.beginPath();
+                    ctx.moveTo(x, padTop);
+                    ctx.lineTo(x, padTop + plotH);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#777';
+                    ctx.font = '10px system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(fmtMMSS(t), x, padTop + plotH + 4);
+                }
+
+                // Line
+                ctx.strokeStyle = chartLine;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+
+                samples.forEach((s, i) => {
+                    const x = padLeft + ((s.t - windowStart) / windowSpan) * plotW;
+                    const clampedHr = Math.max(hrMinPlot, Math.min(hrMaxPlot, s.hr));
+                    const y = padTop + (1 - ((clampedHr - hrMinPlot) / hrRange)) * plotH;
+
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+
+                ctx.stroke();
+
+                // Marker
+                const r = 3;
+                let lastX = padLeft + ((latest.t - windowStart) / windowSpan) * plotW;
+                lastX = Math.max(padLeft + r, Math.min((width - padRight) - r, lastX));
+
+                const lastClampedHr = Math.max(hrMinPlot, Math.min(hrMaxPlot, latest.hr));
+                const lastY = padTop + (1 - ((lastClampedHr - hrMinPlot) / hrRange)) * plotH;
+
+                ctx.fillStyle = chartLine;
+                ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(lastX, lastY, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+
+
+            function tick(ts) {
+                if (!state.run) { state.last = null; drawHrChart(); return; }
+                if (!state.last) state.last = ts;
+                const dt = (ts - state.last) / 1000;
+                state.last = ts;
+
+                state.tLeft -= dt;
+                state.sessionLeft -= dt;
+
+                // HR logging is handled in handleHrValue() so it can record before starting.
+
+                if (state.phase === 'Work' && tempoCfg.enabled && lastWorkTotal && tempoCfg.segmentsPerRound > 0) {
+                    const elapsed = lastWorkTotal - state.tLeft;
+                    const segDur = lastWorkTotal / tempoCfg.segmentsPerRound;
+                    const segIndex = Math.min(
+                        tempoCfg.segmentsPerRound - 1,
+                        Math.floor(elapsed / segDur)
+                    );
+                    if (segIndex !== currentTempoSegment && segIndex >= 0) {
+                        currentTempoSegment = segIndex;
+                        applyTempoSegment(segIndex);
+                    }
+                }
+
+                if (state.phase === 'Work' && state.tLeft <= 10 && !state.tenWarn) {
+                    playFiveBeepWarning();
+                    state.tenWarn = true;
+                }
+
+                const near = Math.ceil(state.tLeft);
+                if ([3, 2, 1].includes(near) && lastBeep !== near && state.phase !== 'Cooldown') {
+                    beep(1200, 100);
+                    lastBeep = near;
+                }
+
+                if (state.tLeft <= 0) {
+                    lastBeep = null;
+
+                    if (state.phase === 'Prep') {
+                        setPhase('Work');
+                    } else if (state.phase === 'Work') {
+                        if (cfg.rest > 0) {
+                            setPhase('Rest');
+                        } else {
+                            state.round++;
+                            updateSegments(state.round);
+                            if (state.round >= cfg.rounds) {
+                                if (cfg.cooldown > 0) setPhase('Cooldown');
+                                else return done();
+                            } else {
+                                setPhase('Work');
+                            }
+                        }
+                    } else if (state.phase === 'Rest') {
+                        if (state.round >= cfg.rounds) {
+                            if (cfg.cooldown > 0) setPhase('Cooldown');
+                            else return done();
+                        } else {
+                            setPhase('Work');
+                        }
+                    } else if (state.phase === 'Cooldown') {
+                        return done();
+                    }
+                }
+
+                update();
+                drawHrChart();
+                state.raf = requestAnimationFrame(tick);
+            }
+
+            function start() {
+                if (state.run) return;
+
+                // Refresh cfg from inputs
+                cfg.prep = parseInt(el.prep.value, 10);
+                cfg.work = parseInt(el.work.value, 10);
+                cfg.rest = parseInt(el.rest.value, 10);
+                cfg.rounds = parseInt(el.rounds.value, 10);
+                cfg.cooldown = parseInt(el.cooldown.value, 10) || 0;
+
+                tempoCfg.hrMax = parseInt(el.maxHr.value, 10) || 180;
+                tempoCfg.segmentsPerRound = parseInt(el.tempoSeg.value, 10) || 0;
+                tempoCfg.maxZone = parseInt(el.maxZone.value, 10) || 4;
+                tempoCfg.maxZone = Math.max(2, Math.min(5, tempoCfg.maxZone));
+                tempoCfg.difficulty = el.tempoDiff.value || 'medium';
+                tempoCfg.enabled = tempoCfg.segmentsPerRound > 0;
+
+                updateTempoBarVisibility();
+
+                if (tempoCfg.enabled) {
+                    tempoDeck = buildTempoDeck(
+                        cfg.rounds,
+                        tempoCfg.segmentsPerRound,
+                        tempoCfg.maxZone,
+                        tempoCfg.difficulty,
+                        tempoCfg.hrMax
+                    );
+                    drawTempoSegments(tempoCfg.segmentsPerRound);
+                } else {
+                    tempoDeck = [];
+                    drawTempoSegments(0);
+                }
+
+                drawSegments(cfg.rounds);
+                updateSegments(0);
+                currentTempoSegment = -1;
+                lastWorkTotal = cfg.work;
+
+                // Initialize session total/remaining on fresh start
+                if (state.phase === 'Ready') {
+                    const total = computeSessionTotalSeconds();
+                    state.sessionTotal = total;
+                    state.sessionLeft = total;
+                    state.tLeft = cfg.prep;
+                    state.tTotal = cfg.prep;
+
+                    // IMPORTANT: Do NOT clear HR samples here.
+                    // We want pre-start logging to remain available for the live graph and exports.
+
+                    updateSessionTimeDisplay();
+                    drawHrChart();
+                }
+
+                if (state.phase === 'Ready') setPhase('Prep');
+                state.run = true;
+                el.startPause.textContent = 'Pause';
+                requestAnimationFrame(tick);
+            }
+
+            function pause() {
+                state.run = false;
+                el.startPause.textContent = 'Start';
+                if (state.raf) cancelAnimationFrame(state.raf);
+                drawHrChart();
+            }
+
+            function done() {
+                pause();
+                beep(2000, 300);
+                el.phase.textContent = 'Done';
+                el.clock.textContent = '00:00';
+                if (tempoCfg.enabled) el.tempoBar.textContent = 'TEMPO';
+                state.sessionLeft = 0;
+                updateSessionTimeDisplay();
+                drawHrChart();
+            }
+
+            el.startPause.addEventListener('click', () => { state.run ? pause() : start(); });
+
+            el.reset.addEventListener('click', () => {
+                pause();
+
+                // Re-read current inputs so reset reflects them
+                cfg.prep = parseInt(el.prep.value, 10) || 0;
+                cfg.work = parseInt(el.work.value, 10) || 0;
+                cfg.rest = parseInt(el.rest.value, 10) || 0;
+                cfg.rounds = parseInt(el.rounds.value, 10) || 0;
+                cfg.cooldown = parseInt(el.cooldown.value, 10) || 0;
+
+                tempoCfg.hrMax = parseInt(el.maxHr.value, 10) || 180;
+                tempoCfg.segmentsPerRound = parseInt(el.tempoSeg.value, 10) || 0;
+                tempoCfg.maxZone = parseInt(el.maxZone.value, 10) || 4;
+                tempoCfg.maxZone = Math.max(2, Math.min(5, tempoCfg.maxZone));
+                tempoCfg.difficulty = el.tempoDiff.value || 'medium';
+                tempoCfg.enabled = tempoCfg.segmentsPerRound > 0;
+
+                updateTempoBarVisibility();
+
+                const total = computeSessionTotalSeconds();
+
+                state = {
+                    phase: 'Ready',
+                    round: 0,
+                    tLeft: cfg.prep,
+                    tTotal: cfg.prep,
+                    sessionLeft: total,
+                    sessionTotal: total,
+                    run: false,
+                    last: null,
+                    raf: null,
+                    tenWarn: false
+                };
+
+                lastBeep = null;
+                currentTempoSegment = -1;
+                lastWorkTotal = null;
+                tempoDeck = [];
+
+                // Clear HR samples but keep connection (reset means "new recording")
+                hrState.samples = [];
+                hrState.exportSamples = [];
+                hrState.lastExportSec = null;
+
+                hrState.recordStartTs = null;
+                hrState.lastRecordTs = null;
+                hrState.lastLogTs = null;
+                hrState.lastExportTs = null;
+
+                hrState.minHr = null;
+                hrState.maxHr = null;
+                updateHrUi();
+
+
+                el.phase.textContent = 'Ready';
+                el.clock.textContent = fmt(cfg.prep || 0);
+                el.nextInfo.textContent = 'Next: Prep';
+
+                drawSegments(cfg.rounds);
+                drawTempoSegments(tempoCfg.enabled ? tempoCfg.segmentsPerRound : 0);
+                update();
+                drawHrChart();
+            });
+
+            if (el.colorPicker) {
+                const storedAccent = localStorage.getItem('cardioanalysis:accent');
+                if (storedAccent) {
+                    el.colorPicker.value = storedAccent;
+                }
+                // Apply once on load
+                applyTheme(el.colorPicker.value);
+                // Ensure the chart immediately repaints with the new theme (even when paused)
+                drawHrChart();
+
+                // Re-apply whenever the accent changes
+                el.colorPicker.addEventListener('input', (e) => {
+                    applyTheme(e.target.value);
+                    drawHrChart();
+                    localStorage.setItem('cardioanalysis:accent', e.target.value);
+                });
+
+                // Some browsers only fire 'change' for color inputs until you close the picker
+                el.colorPicker.addEventListener('change', (e) => {
+                    applyTheme(e.target.value);
+                    drawHrChart();
+                    localStorage.setItem('cardioanalysis:accent', e.target.value);
+                });
+            }
+
+            function formatProfile(profile) {
+                if (!profile) return null;
+                const name = profile.name || 'Fighter';
+                const age = profile.age ? `${profile.age}y` : '';
+                const sex = profile.sex ? profile.sex : '';
+                let height = '';
+                let weight = '';
+                if (profile.units === 'imperial') {
+                    const cm = parseFloat(profile.height_cm || '');
+                    const kg = parseFloat(profile.weight_kg || '');
+                    if (isFinite(cm)) {
+                        const totalIn = cm / 2.54;
+                        const ft = Math.floor(totalIn / 12);
+                        const inch = Math.round(totalIn - ft * 12);
+                        height = `${ft}ft ${inch}in`;
+                    }
+                    if (isFinite(kg)) {
+                        const lb = Math.round(kg * 2.2046226218);
+                        weight = `${lb}lb`;
+                    }
+                } else {
+                    if (profile.height_cm) height = `${profile.height_cm}cm`;
+                    if (profile.weight_kg) weight = `${profile.weight_kg}kg`;
+                }
+                const metaParts = [age, sex, height, weight].filter(Boolean);
+                return { name, meta: metaParts.join(' · ') };
+            }
+
+            function applyProfileToTimer(profile) {
+                const profileMax = computeMaxHr(profile);
+                if (el.maxHr && isFinite(profileMax)) {
+                    el.maxHr.value = profileMax;
+                }
+                const summary = document.querySelector('#profileSummary');
+                if (!summary) return;
+                const info = formatProfile(profile);
+                const nameEl = document.querySelector('#profileName');
+                const metaEl = document.querySelector('#profileMeta');
+                if (!info) {
+                    if (nameEl) nameEl.textContent = 'No profile loaded';
+                    if (metaEl) metaEl.textContent = 'Use Profile to set age, height, and weight.';
+                    return;
+                }
+                if (nameEl) nameEl.textContent = info.name;
+                if (metaEl) metaEl.textContent = info.meta || 'Profile loaded.';
+            }
+
+            const profile = loadProfile();
+            applyProfileToTimer(profile);
+
+            window.addEventListener('storage', (event) => {
+                if (event.key === 'cardioanalysis:profile') {
+                    applyProfileToTimer(loadProfile());
+                }
+            });
+
+            // Initial tempo bar visibility from default TEMPO SEG
+            tempoCfg.enabled = (parseInt(el.tempoSeg.value, 10) || 0) > 0;
+            updateTempoBarVisibility();
+
+            // initial draws
+            drawTempoSegments(tempoCfg.enabled ? (parseInt(el.tempoSeg.value, 10) || 0) : 0);
+            updateSegments(0);
+            update();
+            drawHrChart();
+        })();
+    </script>
+</body>
+</html>
