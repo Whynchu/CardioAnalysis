@@ -1316,14 +1316,22 @@
                     lat: header.indexOf('lat'),
                     lon: header.indexOf('lon')
                 };
-                if (idx.time === -1 || idx.phase === -1 || idx.hr === -1) return { samples: [], meta, rows: [] };
+                const hasHrCol = idx.hr !== -1;
+                if (idx.time === -1 || idx.phase === -1) return { samples: [], meta, rows: [] };
                 const samples = [];
                 const rows = [];
                 for (let i = 1; i < dataLines.length; i++) {
                     const parts = dataLines[i].split(',');
                     const t = parseFloat(parts[idx.time]);
-                    const hr = parseFloat(parts[idx.hr]);
-                    if (!isFinite(t) || !isFinite(hr)) continue;
+                    if (!isFinite(t)) continue;
+                    let hr = NaN;
+                    if (hasHrCol) {
+                        const hrRaw = parts[idx.hr];
+                        if (hrRaw !== undefined && hrRaw !== '') {
+                            const hv = parseFloat(hrRaw);
+                            if (isFinite(hv) && hv > 0) hr = hv;
+                        }
+                    }
                     const phase = (parts[idx.phase] || '').trim();
                     const roundRaw = idx.round >= 0 ? parts[idx.round] : '';
                     const roundNum = roundRaw === '' ? null : parseInt(roundRaw, 10);
@@ -1341,13 +1349,11 @@
                             lon = gv;
                         }
                     }
+                    // Keep rows that have at least t plus either HR, GPS, or speed.
+                    const hasUsefulNonHr = lat !== null || speed !== null;
+                    if (!isFinite(hr) && !hasUsefulNonHr) continue;
                     samples.push({ t, hr, phase, round: Number.isFinite(roundNum) ? roundNum : null, speed, lat, lon });
-                    rows.push({
-                        t,
-                        phase,
-                        hr,
-                        speed
-                    });
+                    rows.push({ t, phase, hr, speed });
                 }
                 return { samples, meta, rows };
             }
@@ -2424,7 +2430,7 @@
             function handleCsvText(fileName, text) {
                 const parsed = parseCsv(text);
                 if (!parsed.samples.length) {
-                    setAnalysisStatus('Could not read CSV. Expecting columns: time_s, phase, round, time_left_s, hr_bpm.', true);
+                    setAnalysisStatus('Could not read CSV. Need at least a time_s column plus one of: hr_bpm, lat/lon, or speed_mps.', true);
                     return;
                 }
                 const results = analyzeSamples(parsed.samples, parsed.meta || {});
