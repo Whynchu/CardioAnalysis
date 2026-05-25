@@ -1998,7 +1998,12 @@
                         radius: 6, color: '#fff', fillColor: '#0b0f18', fillOpacity: 1, weight: 2
                     }).addTo(analysisLmap);
                     analysisLmap.fitBounds(line.getBounds().pad(0.15));
-                    setTimeout(() => { try { analysisLmap.invalidateSize(); } catch {} }, 100);
+                    setTimeout(() => {
+                        try {
+                            analysisLmap.invalidateSize();
+                            analysisLmap.fitBounds(line.getBounds().pad(0.15));
+                        } catch {}
+                    }, 150);
                 } else if (analysisEl.routeSvg) {
                     // Offline fallback — render the SVG outline
                     analysisEl.routeLeaflet && (analysisEl.routeLeaflet.style.display = 'none');
