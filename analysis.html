@@ -1442,9 +1442,19 @@
                 for (let i = 0; i < samples.length; i++) {
                     const hr = samples[i].hr;
                     const dt = dtArr[i];
-                    if (!isFinite(hr) || dt <= 0) continue;
+                    if (dt <= 0) continue;
 
+                    // totalTime should always accumulate even if HR is missing,
+                    // so duration + pace work for GPS-only walk/run sessions.
                     totalTime += dt;
+                    const phase = (samples[i].phase || '').toLowerCase();
+                    const isWork = phase === 'work';
+                    const isRest = phase === 'rest';
+                    if (isWork) workTime += dt;
+                    if (isRest) restTime += dt;
+
+                    if (!isFinite(hr)) continue;
+
                     weightedHr += hr * dt;
 
                     const pct = hr / hrMax;
@@ -1454,11 +1464,7 @@
                     else if (pct < 0.9) zoneTimes.z4 += dt;
                     else zoneTimes.z5 += dt;
 
-                    const phase = (samples[i].phase || '').toLowerCase();
-                    const isWork = phase === 'work';
-                    const isRest = phase === 'rest';
                     if (isWork) {
-                        workTime += dt;
                         weightedHrWork += hr * dt;
                         workLiftSum += Math.max(0, hr - baseline) * dt;
                         if (hr >= 0.65 * hrMax) workAbove65Time += dt;
@@ -1469,7 +1475,6 @@
                         else zoneTimesWork.z5 += dt;
                     }
                     if (isRest) {
-                        restTime += dt;
                         restHrSum += hr * dt;
                     }
 
