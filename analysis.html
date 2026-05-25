@@ -2183,7 +2183,7 @@
                     native:    { w: null, h: null, panelW: null, narrow: false, label: 'native' },
                     square:    { w: 1080, h: 1080, panelW: 1040, narrow: false, label: 'square' },
                     portrait:  { w: 1080, h: 1350, panelW: 1040, narrow: false, label: 'portrait' },
-                    story:     { w: 1080, h: 1920, panelW: 720,  narrow: true,  label: 'story' },
+                    story:     { w: 1080, h: 1920, panelW: 900,  narrow: true,  label: 'story' },
                     landscape: { w: 1920, h: 1080, panelW: 1800, narrow: false, label: 'landscape' }
                 };
 
@@ -2229,7 +2229,8 @@
                             octx.fillStyle = outsideBg;
                             octx.fillRect(0, 0, preset.w, preset.h);
 
-                            const margin = Math.round(Math.min(preset.w, preset.h) * 0.04);
+                            const marginPct = (preset.label === 'story') ? 0.02 : 0.04;
+                            const margin = Math.round(Math.min(preset.w, preset.h) * marginPct);
                             const maxW = preset.w - margin * 2;
                             const maxH = preset.h - margin * 2;
                             const scale = Math.min(maxW / captured.width, maxH / captured.height);
