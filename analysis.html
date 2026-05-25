@@ -581,6 +581,16 @@
             display: none !important;
         }
 
+        .analysis-panel.export-narrow .stat-strip { grid-template-columns: repeat(2, 1fr); }
+        .analysis-panel.export-narrow .bottom-grid { grid-template-columns: 1fr; }
+        .analysis-panel.export-narrow #analysisChart { height: 280px; }
+        .analysis-panel.export-narrow .zones-table {
+            grid-template-columns: 36px 1fr 90px 56px 60px;
+            font-size: 0.85rem;
+        }
+        .analysis-panel.export-narrow .session-notes { font-size: 0.92rem; line-height: 1.55; }
+        .analysis-panel.export-narrow .summary-row .stext .sval { font-size: 1rem; }
+
         .export-select {
             background: var(--panel);
             color: var(--text);
@@ -2131,13 +2141,14 @@
             }
 
             if (analysisEl.exportImage && analysisEl.panel) {
-                // panelW = width to force on the panel before capture (drives responsive reflow)
+                // panelW = width to force on the panel before capture
+                // narrow = also apply .export-narrow class (forces 2-col stats + stacked bottom grid)
                 const FORMAT_PRESETS = {
-                    native:    { w: null, h: null, panelW: null, label: 'native' },
-                    square:    { w: 1080, h: 1080, panelW: 1040, label: 'square' },
-                    portrait:  { w: 1080, h: 1350, panelW: 1040, label: 'portrait' },
-                    story:     { w: 1080, h: 1920, panelW: 500,  label: 'story' },
-                    landscape: { w: 1920, h: 1080, panelW: 1800, label: 'landscape' }
+                    native:    { w: null, h: null, panelW: null, narrow: false, label: 'native' },
+                    square:    { w: 1080, h: 1080, panelW: 1040, narrow: false, label: 'square' },
+                    portrait:  { w: 1080, h: 1350, panelW: 1040, narrow: false, label: 'portrait' },
+                    story:     { w: 1080, h: 1920, panelW: 720,  narrow: true,  label: 'story' },
+                    landscape: { w: 1920, h: 1080, panelW: 1800, narrow: false, label: 'landscape' }
                 };
 
                 analysisEl.exportImage.addEventListener('click', async () => {
@@ -2152,6 +2163,7 @@
                     const prevWidth = panel.style.width;
                     const prevMaxWidth = panel.style.maxWidth;
                     panel.classList.add('exporting');
+                    if (preset.narrow) panel.classList.add('export-narrow');
                     if (preset.panelW) {
                         panel.style.width = preset.panelW + 'px';
                         panel.style.maxWidth = preset.panelW + 'px';
@@ -2207,6 +2219,7 @@
                         alert('Image export failed: ' + (err?.message || err));
                     } finally {
                         panel.classList.remove('exporting');
+                        panel.classList.remove('export-narrow');
                         panel.style.width = prevWidth;
                         panel.style.maxWidth = prevMaxWidth;
                         await new Promise(r => requestAnimationFrame(r));
