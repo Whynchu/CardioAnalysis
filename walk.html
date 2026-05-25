@@ -507,6 +507,7 @@
             }
             loadAccent();
             const profile = loadProfile();
+            state.units = profile?.units === 'imperial' ? 'imperial' : 'metric';
             state.hrMax = (() => {
                 const age = parseInt(profile?.age || '', 10);
                 if (!isFinite(age) || age <= 0) return 190;
@@ -726,13 +727,19 @@
                 return `${m}:${String(ss).padStart(2,'0')}`;
             }
             function updateDistanceDisplay() {
-                const km = state.distanceM / 1000;
-                el.statDistance.innerHTML = `${km.toFixed(2)}<span class="unit">km</span>`;
+                if (state.units === 'imperial') {
+                    const mi = state.distanceM / 1609.344;
+                    el.statDistance.innerHTML = `${mi.toFixed(2)}<span class="unit">mi</span>`;
+                } else {
+                    const km = state.distanceM / 1000;
+                    el.statDistance.innerHTML = `${km.toFixed(2)}<span class="unit">km</span>`;
+                }
             }
             function updatePaceDisplay() {
+                const unitLbl = state.units === 'imperial' ? '/mi' : '/km';
                 // rolling pace over last ~8s window
                 if (state.paceSamples.length < 2) {
-                    el.statPace.innerHTML = `--<span class="unit">/km</span>`;
+                    el.statPace.innerHTML = `--<span class="unit">${unitLbl}</span>`;
                     return;
                 }
                 const first = state.paceSamples[0];
@@ -740,18 +747,19 @@
                 const dt = (last.t - first.t) / 1000;
                 const dd = last.distanceM - first.distanceM;
                 if (dt < 3 || dd < 3) {
-                    el.statPace.innerHTML = `--<span class="unit">/km</span>`;
+                    el.statPace.innerHTML = `--<span class="unit">${unitLbl}</span>`;
                     return;
                 }
                 const speedMps = dd / dt;            // m/s
-                const secPerKm = 1000 / speedMps;
-                const m = Math.floor(secPerKm / 60);
-                const s = Math.round(secPerKm % 60);
+                let secPerUnit = 1000 / speedMps;    // sec/km
+                if (state.units === 'imperial') secPerUnit *= 1.609344; // sec/mi
+                const m = Math.floor(secPerUnit / 60);
+                const s = Math.round(secPerUnit % 60);
                 if (m > 60) {
-                    el.statPace.innerHTML = `--<span class="unit">/km</span>`;
+                    el.statPace.innerHTML = `--<span class="unit">${unitLbl}</span>`;
                     return;
                 }
-                el.statPace.innerHTML = `${m}:${String(s).padStart(2,'0')}<span class="unit">/km</span>`;
+                el.statPace.innerHTML = `${m}:${String(s).padStart(2,'0')}<span class="unit">${unitLbl}</span>`;
             }
             function updateAvgHr() {
                 if (state.hrCount > 0) {

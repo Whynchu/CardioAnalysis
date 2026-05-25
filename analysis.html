@@ -457,6 +457,42 @@
             gap: 10px;
         }
 
+        .route-card {
+            margin-top: 14px;
+        }
+        .route-title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+        .route-sub { color: var(--muted); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; }
+        .route-wrap {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .route-svg {
+            width: 100%;
+            height: auto;
+            display: block;
+            max-height: 360px;
+        }
+        .route-svg .route-line {
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 2.2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 55%, transparent));
+        }
+        .route-svg .route-start, .route-svg .route-end {
+            stroke: rgba(255,255,255,0.85);
+            stroke-width: 1.2;
+        }
+        .route-svg .route-start { fill: var(--accent); }
+        .route-svg .route-end { fill: #0b0f18; }
+        .analysis-panel.export-narrow .route-svg { max-height: 480px; }
+
         .zones-table {
             display: grid;
             grid-template-columns: 32px 1fr 1.3fr 44px 52px;
@@ -763,6 +799,16 @@
             </div>
         </div>
 
+        <div class="analysis-card route-card" id="routeCard" hidden>
+            <div class="analysis-card-title route-title">
+                <span>Route</span>
+                <span class="route-sub" id="routeSub"></span>
+            </div>
+            <div class="route-wrap">
+                <svg id="routeSvg" class="route-svg" viewBox="0 0 100 60" preserveAspectRatio="xMidYMid meet" aria-hidden="true"></svg>
+            </div>
+        </div>
+
         <div class="bottom-grid">
             <div class="analysis-card">
                 <div class="analysis-card-title">Time in Heart Rate Zones</div>
@@ -949,6 +995,9 @@
                 exportImage: $('#exportImageBtn'),
                 panel: document.querySelector('.analysis-panel'),
                 chart: $('#analysisChart'),
+                routeCard: $('#routeCard'),
+                routeSvg: $('#routeSvg'),
+                routeSub: $('#routeSub'),
                 color: $('#analysisColor'),
                 logToggle: $('#logToggle'),
                 logModal: $('#logModal'),
@@ -1241,7 +1290,9 @@
                     phase: header.indexOf('phase'),
                     hr: header.indexOf('hr_bpm'),
                     round: header.indexOf('round'),
-                    speed: header.indexOf('speed_mps')
+                    speed: header.indexOf('speed_mps'),
+                    lat: header.indexOf('lat'),
+                    lon: header.indexOf('lon')
                 };
                 if (idx.time === -1 || idx.phase === -1 || idx.hr === -1) return { samples: [], meta, rows: [] };
                 const samples = [];
@@ -1259,7 +1310,16 @@
                         const sv = parseFloat(parts[idx.speed]);
                         if (isFinite(sv)) speed = sv;
                     }
-                    samples.push({ t, hr, phase, round: Number.isFinite(roundNum) ? roundNum : null, speed });
+                    let lat = null, lon = null;
+                    if (idx.lat >= 0 && idx.lon >= 0) {
+                        const lv = parseFloat(parts[idx.lat]);
+                        const gv = parseFloat(parts[idx.lon]);
+                        if (isFinite(lv) && isFinite(gv) && (lv !== 0 || gv !== 0)) {
+                            lat = lv;
+                            lon = gv;
+                        }
+                    }
+                    samples.push({ t, hr, phase, round: Number.isFinite(roundNum) ? roundNum : null, speed, lat, lon });
                     rows.push({
                         t,
                         phase,
@@ -1829,6 +1889,91 @@
                 analysisEl.logModal.setAttribute('aria-hidden', 'true');
             }
 
+            function getUserUnits() {
+                const p = loadProfile();
+                return (p && p.units === 'imperial') ? 'imperial' : 'metric';
+            }
+
+            function formatDistance(meters, units) {
+                if (!isFinite(meters) || meters <= 0) return '--';
+                if (units === 'imperial') {
+                    const mi = meters / 1609.344;
+                    return `${mi.toFixed(2)} mi`;
+                }
+                return `${(meters / 1000).toFixed(2)} km`;
+            }
+
+            function formatPaceFromSecPerKm(secPerKm, units) {
+                if (!isFinite(secPerKm) || secPerKm <= 0 || secPerKm >= 3600) return '--';
+                const conv = units === 'imperial' ? secPerKm * 1.609344 : secPerKm;
+                const m = Math.floor(conv / 60);
+                const s = Math.round(conv % 60);
+                const lbl = units === 'imperial' ? '/mi' : '/km';
+                return `${m}:${String(s).padStart(2, '0')} ${lbl}`;
+            }
+
+            function renderRouteSvg(samples) {
+                if (!analysisEl.routeCard || !analysisEl.routeSvg) return;
+                const pts = (samples || []).filter(s => s && s.lat != null && s.lon != null);
+                if (pts.length < 3) {
+                    analysisEl.routeCard.hidden = true;
+                    return;
+                }
+                // Equirectangular projection at the route center keeps shape accurate
+                // for the small distances a walk/run covers.
+                let minLat = pts[0].lat, maxLat = pts[0].lat;
+                let minLon = pts[0].lon, maxLon = pts[0].lon;
+                for (const p of pts) {
+                    if (p.lat < minLat) minLat = p.lat;
+                    if (p.lat > maxLat) maxLat = p.lat;
+                    if (p.lon < minLon) minLon = p.lon;
+                    if (p.lon > maxLon) maxLon = p.lon;
+                }
+                const centerLat = (minLat + maxLat) / 2;
+                const cosLat = Math.cos(centerLat * Math.PI / 180);
+                const M_PER_DEG = 111320;
+                const xs = pts.map(p => (p.lon - minLon) * cosLat * M_PER_DEG);
+                const ys = pts.map(p => (maxLat - p.lat) * M_PER_DEG); // invert so north is up
+                const xMax = Math.max(...xs);
+                const yMax = Math.max(...ys);
+                if (!isFinite(xMax) || !isFinite(yMax) || (xMax < 5 && yMax < 5)) {
+                    // Static GPS (e.g. laptop): hide the card rather than draw a dot.
+                    analysisEl.routeCard.hidden = true;
+                    return;
+                }
+                // Pad the viewBox a touch so stroke + endpoints don't clip
+                const PAD = 6;
+                const W = Math.max(xMax, 1);
+                const H = Math.max(yMax, 1);
+                // Keep a sane aspect ratio for narrow routes (e.g. long straight line)
+                const aspect = W / H;
+                let vbW, vbH;
+                if (aspect > 3) { vbW = 300; vbH = Math.max(60, 300 / aspect); }
+                else if (aspect < 1/3) { vbH = 300; vbW = Math.max(60, 300 * aspect); }
+                else { vbW = 300; vbH = Math.round(300 / aspect); }
+                const sx = (vbW - PAD * 2) / W;
+                const sy = (vbH - PAD * 2) / H;
+                const s = Math.min(sx, sy);
+                const drawW = W * s;
+                const drawH = H * s;
+                const offX = (vbW - drawW) / 2;
+                const offY = (vbH - drawH) / 2;
+                const coords = xs.map((x, i) => [offX + x * s, offY + ys[i] * s]);
+                const d = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c[0].toFixed(2)},${c[1].toFixed(2)}`).join(' ');
+                const start = coords[0];
+                const end = coords[coords.length - 1];
+                analysisEl.routeSvg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+                analysisEl.routeSvg.innerHTML =
+                    `<path class="route-line" d="${d}" />` +
+                    `<circle class="route-start" cx="${start[0].toFixed(2)}" cy="${start[1].toFixed(2)}" r="4" />` +
+                    `<circle class="route-end" cx="${end[0].toFixed(2)}" cy="${end[1].toFixed(2)}" r="4" />`;
+                if (analysisEl.routeSub) {
+                    const span = Math.round(Math.max(W, H));
+                    analysisEl.routeSub.textContent = `~${span} m span • ${pts.length} fixes`;
+                }
+                analysisEl.routeCard.hidden = false;
+            }
+
             function computeMaxPaceSecPerKm(samples) {
                 // Smooth GPS speed over a ~15s rolling window, then take the max.
                 // Returns sec/km, or null if there isn't usable speed data.
@@ -1880,13 +2025,12 @@
                     .reduce((best, k) => (zones[k] > (zones[best] || 0) ? k : best), 'z1');
                 const zoneLabel = { z1: 'recovery (Z1)', z2: 'light aerobic (Z2)', z3: 'moderate (Z3)', z4: 'hard (Z4)', z5: 'maximum (Z5)' };
 
+                const units = getUserUnits();
                 if (km > 0) {
-                    lines.push(`${minutes} min ${label} • ${km.toFixed(2)} km.`);
+                    lines.push(`${minutes} min ${label} • ${formatDistance(distM, units)}.`);
                     if (results.totalTime > 0 && km >= 0.1) {
-                        const secPerKm = results.totalTime / km;
-                        const m = Math.floor(secPerKm / 60);
-                        const s = Math.round(secPerKm % 60);
-                        if (secPerKm < 3600) lines.push(`Average pace ${m}:${String(s).padStart(2,'0')} /km.`);
+                        const paceStr = formatPaceFromSecPerKm(results.totalTime / km, units);
+                        if (paceStr !== '--') lines.push(`Average pace ${paceStr}.`);
                     }
                 } else {
                     lines.push(`${minutes} min ${label}.`);
@@ -2023,13 +2167,14 @@
                 if (analysisEl.summaryAvgHr) analysisEl.summaryAvgHr.textContent = formatBpm(results.avgHr);
 
                 // Effort Score row doubles as Max Pace for outdoor sessions
+                const userUnits = getUserUnits();
                 const effortLbl = analysisEl.summaryEffort?.parentNode?.querySelector('.slabel');
                 if (isOutdoor) {
                     const maxPaceSec = computeMaxPaceSecPerKm(samples);
                     if (effortLbl) effortLbl.textContent = 'Max Pace';
                     if (analysisEl.summaryEffort) {
                         analysisEl.summaryEffort.textContent = maxPaceSec != null
-                            ? formatPaceSecPerKm(maxPaceSec)
+                            ? formatPaceFromSecPerKm(maxPaceSec, userUnits)
                             : '--';
                     }
                 } else {
@@ -2042,22 +2187,15 @@
                 const recoveryLbl = analysisEl.summaryRecovery?.parentNode?.querySelector('.slabel');
                 if (isOutdoor) {
                     const distM = parseFloat(meta.distance_m || '0');
-                    const km = isFinite(distM) ? distM / 1000 : 0;
                     if (peaksLbl) peaksLbl.textContent = 'Distance';
                     if (analysisEl.summaryPeaks) {
-                        analysisEl.summaryPeaks.textContent = km > 0 ? `${km.toFixed(2)} km` : '--';
+                        analysisEl.summaryPeaks.textContent = formatDistance(distM, userUnits);
                     }
                     if (recoveryLbl) recoveryLbl.textContent = 'Avg Pace';
                     if (analysisEl.summaryRecovery) {
+                        const km = isFinite(distM) ? distM / 1000 : 0;
                         if (km > 0 && results.totalTime > 0) {
-                            const secPerKm = results.totalTime / km;
-                            if (secPerKm < 3600) {
-                                const m = Math.floor(secPerKm / 60);
-                                const s = Math.round(secPerKm % 60);
-                                analysisEl.summaryRecovery.textContent = `${m}:${String(s).padStart(2,'0')} /km`;
-                            } else {
-                                analysisEl.summaryRecovery.textContent = '--';
-                            }
+                            analysisEl.summaryRecovery.textContent = formatPaceFromSecPerKm(results.totalTime / km, userUnits);
                         } else {
                             analysisEl.summaryRecovery.textContent = '--';
                         }
@@ -2098,6 +2236,8 @@
                 analysisState.lastHrMax = results.hrMax;
 
                 drawAnalysisChart(samples, results.hrMax);
+                if (isOutdoor) renderRouteSvg(samples);
+                else if (analysisEl.routeCard) analysisEl.routeCard.hidden = true;
                 setAnalysisStatus(`Loaded ${fileName} • ${samples.length} samples`, false);
                 if (remember) rememberAnalysis(fileName, results, samples, meta);
             }
