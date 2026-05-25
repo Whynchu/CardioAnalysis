@@ -1240,7 +1240,8 @@
                     time: header.indexOf('time_s'),
                     phase: header.indexOf('phase'),
                     hr: header.indexOf('hr_bpm'),
-                    round: header.indexOf('round')
+                    round: header.indexOf('round'),
+                    speed: header.indexOf('speed_mps')
                 };
                 if (idx.time === -1 || idx.phase === -1 || idx.hr === -1) return { samples: [], meta, rows: [] };
                 const samples = [];
@@ -1253,11 +1254,17 @@
                     const phase = (parts[idx.phase] || '').trim();
                     const roundRaw = idx.round >= 0 ? parts[idx.round] : '';
                     const roundNum = roundRaw === '' ? null : parseInt(roundRaw, 10);
-                    samples.push({ t, hr, phase, round: Number.isFinite(roundNum) ? roundNum : null });
+                    let speed = null;
+                    if (idx.speed >= 0) {
+                        const sv = parseFloat(parts[idx.speed]);
+                        if (isFinite(sv)) speed = sv;
+                    }
+                    samples.push({ t, hr, phase, round: Number.isFinite(roundNum) ? roundNum : null, speed });
                     rows.push({
                         t,
                         phase,
-                        hr
+                        hr,
+                        speed
                     });
                 }
                 return { samples, meta, rows };
@@ -1822,6 +1829,43 @@
                 analysisEl.logModal.setAttribute('aria-hidden', 'true');
             }
 
+            function computeMaxPaceSecPerKm(samples) {
+                // Smooth GPS speed over a ~15s rolling window, then take the max.
+                // Returns sec/km, or null if there isn't usable speed data.
+                if (!Array.isArray(samples) || samples.length < 4) return null;
+                const pts = samples
+                    .filter(s => s && isFinite(s.t) && s.speed != null && isFinite(s.speed))
+                    .sort((a, b) => a.t - b.t);
+                if (pts.length < 4) return null;
+                const WINDOW = 15;     // seconds
+                const MIN_SPEED = 0.5; // m/s — ignore stops
+                let maxSpeed = 0;
+                let i = 0;
+                for (let j = 0; j < pts.length; j++) {
+                    while (pts[j].t - pts[i].t > WINDOW) i++;
+                    const span = pts[j].t - pts[i].t;
+                    if (span < WINDOW * 0.5) continue;
+                    let sum = 0;
+                    let count = 0;
+                    for (let k = i; k <= j; k++) {
+                        sum += pts[k].speed;
+                        count++;
+                    }
+                    if (count < 3) continue;
+                    const avg = sum / count;
+                    if (avg > maxSpeed) maxSpeed = avg;
+                }
+                if (maxSpeed < MIN_SPEED) return null;
+                return 1000 / maxSpeed;
+            }
+
+            function formatPaceSecPerKm(secPerKm) {
+                if (!isFinite(secPerKm) || secPerKm <= 0 || secPerKm >= 3600) return '--';
+                const m = Math.floor(secPerKm / 60);
+                const s = Math.round(secPerKm % 60);
+                return `${m}:${String(s).padStart(2, '0')} /km`;
+            }
+
             function buildOutdoorNotes(results, meta) {
                 const lines = [];
                 const sessionType = (meta.session_type || results.sessionType || '').toLowerCase();
@@ -1977,7 +2021,21 @@
                 if (analysisEl.summaryPeakHr) analysisEl.summaryPeakHr.textContent = formatBpm(results.maxHr);
                 if (analysisEl.summaryHiTime) analysisEl.summaryHiTime.textContent = `${formatDuration(hiTime)} (${hiPct.toFixed(1)}%)`;
                 if (analysisEl.summaryAvgHr) analysisEl.summaryAvgHr.textContent = formatBpm(results.avgHr);
-                if (analysisEl.summaryEffort) analysisEl.summaryEffort.textContent = `${Math.round(results.effortScore)}/100`;
+
+                // Effort Score row doubles as Max Pace for outdoor sessions
+                const effortLbl = analysisEl.summaryEffort?.parentNode?.querySelector('.slabel');
+                if (isOutdoor) {
+                    const maxPaceSec = computeMaxPaceSecPerKm(samples);
+                    if (effortLbl) effortLbl.textContent = 'Max Pace';
+                    if (analysisEl.summaryEffort) {
+                        analysisEl.summaryEffort.textContent = maxPaceSec != null
+                            ? formatPaceSecPerKm(maxPaceSec)
+                            : '--';
+                    }
+                } else {
+                    if (effortLbl) effortLbl.textContent = 'Effort Score';
+                    if (analysisEl.summaryEffort) analysisEl.summaryEffort.textContent = `${Math.round(results.effortScore)}/100`;
+                }
 
                 // Repurpose Peaks/Recovery rows for outdoor sessions (walk/run/hybrid)
                 const peaksLbl = analysisEl.summaryPeaks?.parentNode?.querySelector('.slabel');
@@ -2300,7 +2358,13 @@
                             backgroundColor: null,
                             scale: 2,
                             useCORS: true,
-                            logging: false
+                            logging: false,
+                            // Force the capture viewport to the desired panel width so mobile
+                            // browsers (with viewports smaller than panelW) don't clip the layout.
+                            windowWidth: preset.panelW || document.documentElement.clientWidth,
+                            windowHeight: Math.max(document.documentElement.clientHeight, panel.scrollHeight),
+                            width: preset.panelW || panel.scrollWidth,
+                            height: panel.scrollHeight
                         });
 
                         let outCanvas;
@@ -2330,10 +2394,32 @@
 
                         const titleStr = (analysisEl.titleText?.textContent || 'session').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
                         const dateStr = new Date().toISOString().slice(0, 10);
-                        const link = document.createElement('a');
-                        link.download = `cardio-${titleStr || 'session'}-${preset.label}-${dateStr}.png`;
-                        link.href = outCanvas.toDataURL('image/png');
-                        link.click();
+                        const fileName = `cardio-${titleStr || 'session'}-${preset.label}-${dateStr}.png`;
+                        // toBlob handles very large mobile exports better than toDataURL.
+                        await new Promise((resolve) => {
+                            const finish = (url, revoke) => {
+                                const link = document.createElement('a');
+                                link.download = fileName;
+                                link.href = url;
+                                link.rel = 'noopener';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                if (revoke) setTimeout(() => URL.revokeObjectURL(url), 4000);
+                                resolve();
+                            };
+                            if (outCanvas.toBlob) {
+                                outCanvas.toBlob((blob) => {
+                                    if (!blob) {
+                                        finish(outCanvas.toDataURL('image/png'), false);
+                                    } else {
+                                        finish(URL.createObjectURL(blob), true);
+                                    }
+                                }, 'image/png');
+                            } else {
+                                finish(outCanvas.toDataURL('image/png'), false);
+                            }
+                        });
                     } catch (err) {
                         console.error('Image export failed', err);
                         alert('Image export failed: ' + (err?.message || err));
