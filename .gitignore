@@ -8,6 +8,18 @@ Thumbs.db
 node_modules/
 dist/
 build/
+www/
+
+# Capacitor / Android generated artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.idea/
+*.keystore
+*.jks
+!debug.keystore
 
 # Logs
 *.log

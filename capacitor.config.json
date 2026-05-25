@@ -1,0 +1,13 @@
+{
+  "appId": "io.github.whynchu.cardio",
+  "appName": "CardioAnalysis",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
