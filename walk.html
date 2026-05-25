@@ -848,8 +848,8 @@
             // ============================================
             function startRecording() {
                 if (state.recording) return;
-                if (!state.gpsEnabled) {
-                    toast('Enable GPS first');
+                if (!state.hrConnected && !state.gpsEnabled) {
+                    toast('Connect HR or enable GPS first');
                     return;
                 }
                 state.recording = true;
@@ -910,7 +910,23 @@
                 el.modeToggle.querySelectorAll('button').forEach(b => b.disabled = false);
                 el.btnExport.disabled = state.samples.length === 0;
                 drawMiniChart();
-                toast(`${state.mode === 'run' ? 'Run' : 'Walk'} finished — ${state.samples.length}s recorded`);
+                if (state.samples.length > 0) {
+                    // Stash in localStorage as a safety net in case the download is blocked
+                    try {
+                        localStorage.setItem('cardioanalysis:last_walk', JSON.stringify({
+                            ts: Date.now(),
+                            mode: state.mode,
+                            distanceM: state.distanceM,
+                            elapsedS: Math.round(elapsedSec()),
+                            samples: state.samples
+                        }));
+                    } catch (err) { console.warn('Stash failed', err); }
+                    // Auto-save so the session can't be lost
+                    exportCsv({ auto: true });
+                    toast(`Saved ${state.samples.length}s session — CSV downloaded`);
+                } else {
+                    toast('No samples recorded');
+                }
             }
             function elapsedSec() {
                 if (!state.startTs) return 0;
@@ -954,11 +970,12 @@
             // ============================================
             // CSV EXPORT — schema-compatible with analysis.html
             // ============================================
-            function exportCsv() {
+            function exportCsv(opts) {
                 if (!state.samples.length) {
                     toast('Nothing to export');
                     return;
                 }
+                const isAuto = !!(opts && opts.auto);
                 const now = new Date();
                 const meta = [
                     '#hr_timer_export=1',
@@ -997,9 +1014,9 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                toast('CSV downloaded');
+                if (!isAuto) toast('CSV downloaded');
             }
-            el.btnExport.addEventListener('click', exportCsv);
+            el.btnExport.addEventListener('click', () => exportCsv());
 
             // ============================================
             // SAFETY: prevent accidental nav while recording
@@ -1020,6 +1037,39 @@
             updatePaceDisplay();
             window.addEventListener('resize', drawMiniChart);
             drawMiniChart();
+
+            // Recover last session from localStorage (in case auto-download failed)
+            try {
+                const raw = localStorage.getItem('cardioanalysis:last_walk');
+                if (raw) {
+                    const last = JSON.parse(raw);
+                    if (last && Array.isArray(last.samples) && last.samples.length > 0) {
+                        state.samples = last.samples;
+                        state.distanceM = last.distanceM || 0;
+                        state.lastSampleSec = last.samples[last.samples.length - 1].t || -1;
+                        // Recompute avg HR from samples
+                        let sum = 0, count = 0;
+                        last.samples.forEach(s => {
+                            const hr = parseFloat(s.hr);
+                            if (isFinite(hr)) { sum += hr; count++; }
+                        });
+                        state.hrSum = sum; state.hrCount = count;
+                        state.startTs = performance.now() - (last.elapsedS || 0) * 1000;
+                        state.mode = last.mode || 'walk';
+                        el.modeToggle.querySelectorAll('button').forEach(b => {
+                            b.classList.toggle('active', b.dataset.mode === state.mode);
+                        });
+                        el.statElapsed.textContent = fmtDuration(last.elapsedS || 0);
+                        updateDistanceDisplay();
+                        updateAvgHr();
+                        drawMiniChart();
+                        el.btnExport.disabled = false;
+                        el.btnStart.textContent = 'Start New';
+                        const dt = new Date(last.ts || Date.now());
+                        toast(`Last ${state.mode} restored — Export CSV available`);
+                    }
+                }
+            } catch (err) { console.warn('Restore failed', err); }
 
             // Web Bluetooth availability hint
             if (!navigator.bluetooth) {
