@@ -479,7 +479,6 @@
             width: 100%;
             height: auto;
             display: block;
-            max-height: 360px;
         }
         .route-svg .route-line {
             fill: none;
@@ -495,8 +494,8 @@
         }
         .route-svg .route-start { fill: var(--accent); }
         .route-svg .route-end { fill: #0b0f18; }
-        .route-svg { max-height: 260px; }
-        .analysis-panel.export-narrow .route-svg { max-height: 300px; }
+        .route-svg { max-height: none; }
+        .analysis-panel.export-narrow .route-svg { max-height: none; }
         #routeLeaflet {
             width: 100%;
             height: 260px;
@@ -640,17 +639,32 @@
             display: none !important;
         }
 
-        .analysis-panel.export-narrow .stat-strip { grid-template-columns: repeat(2, 1fr); gap: 14px; }
-        .analysis-panel.export-narrow .stat-tile { padding: 14px 16px; gap: 14px; }
-        .analysis-panel.export-narrow .stat-tile .stat-icon { width: 42px; height: 42px; border-radius: 10px; }
-        .analysis-panel.export-narrow .stat-tile .stat-icon svg { width: 24px; height: 24px; }
-        .analysis-panel.export-narrow .stat-tile .stat-label { font-size: 0.7rem; }
-        .analysis-panel.export-narrow .stat-tile .stat-value { font-size: 1.7rem; }
-        .analysis-panel.export-narrow .stat-tile .stat-unit { font-size: 0.85rem; }
-        .analysis-panel.export-narrow .bottom-grid { grid-template-columns: 1fr; }
-        .analysis-panel.export-narrow #analysisChart { height: 360px; }
-        .analysis-panel.export-narrow .analysis-card { padding: 16px 18px; }
-        .analysis-panel.export-narrow .analysis-card-title { font-size: 0.78rem; margin-bottom: 12px; }
+        .analysis-panel.export-narrow .stat-strip { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .analysis-panel.export-narrow .stat-tile { padding: 10px 14px; gap: 12px; }
+        .analysis-panel.export-narrow .stat-tile .stat-icon { width: 38px; height: 38px; border-radius: 10px; }
+        .analysis-panel.export-narrow .stat-tile .stat-icon svg { width: 22px; height: 22px; }
+        .analysis-panel.export-narrow .stat-tile .stat-label { font-size: 0.68rem; }
+        .analysis-panel.export-narrow .stat-tile .stat-value { font-size: 1.55rem; }
+        .analysis-panel.export-narrow .stat-tile .stat-unit { font-size: 0.8rem; }
+        .analysis-panel.export-narrow .bottom-grid { grid-template-columns: 1fr; gap: 16px; }
+        .analysis-panel.export-narrow #analysisChart { height: 320px; }
+        .analysis-panel.export-narrow .analysis-card { padding: 14px 16px; }
+        .analysis-panel.export-narrow .analysis-card-title { font-size: 0.76rem; margin-bottom: 10px; }
+
+        /* Session Summary: 2-column grid in narrow mode so 6 rows fit in 3 */
+        .analysis-panel.export-narrow .analysis-card:has(> .summary-row) {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 14px;
+            row-gap: 2px;
+        }
+        .analysis-panel.export-narrow .analysis-card:has(> .summary-row) > .analysis-card-title {
+            grid-column: 1 / -1;
+        }
+        .analysis-panel.export-narrow .analysis-card:has(> .summary-row) > .summary-row {
+            border-top: none;
+            padding: 6px 0;
+        }
 
         /* Full-width zone bars in narrow/story mode */
         .analysis-panel.export-narrow .zones-table {
@@ -670,8 +684,8 @@
         .analysis-panel.export-narrow .zones-table > div:nth-child(5) { grid-column: 5; }
         .analysis-panel.export-narrow .zones-table .zbar {
             grid-column: 1 / -1;
-            height: 14px;
-            margin: 2px 0 8px;
+            height: 10px;
+            margin: 1px 0 6px;
         }
         .analysis-panel.export-narrow .zones-table .ztotal,
         .analysis-panel.export-narrow .zones-table .ztotal-val {
@@ -1950,8 +1964,9 @@
 
             let analysisLmap = null;
             let analysisLastRoutePts = null;
-            function drawRouteSvgFallback(pts, minLat, maxLat, minLon, maxLon, cosLat, M_PER_DEG, wM, hM) {
+            function drawRouteSvgFallback(pts, minLat, maxLat, minLon, maxLon, cosLat, M_PER_DEG, wM, hM, opts) {
                 if (!analysisEl.routeSvg) return;
+                const targetH = (opts && opts.height) || 240;
                 if (analysisEl.routeLeaflet) analysisEl.routeLeaflet.style.display = 'none';
                 analysisEl.routeSvg.style.display = 'block';
                 const xs = pts.map(p => (p.lon - minLon) * cosLat * M_PER_DEG);
@@ -1972,6 +1987,14 @@
                 const start = coords[0], end = coords[coords.length - 1];
                 analysisEl.routeSvg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
                 analysisEl.routeSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                // Size the SVG element itself to the polyline's actual aspect ratio
+                // so the route card collapses to just the space the line needs —
+                // no wide letterboxed dead space around a short polyline.
+                const targetW = Math.round(targetH * (vbW / vbH));
+                analysisEl.routeSvg.style.height = targetH + 'px';
+                analysisEl.routeSvg.style.width = targetW + 'px';
+                analysisEl.routeSvg.style.maxWidth = '100%';
+                analysisEl.routeSvg.style.margin = '0 auto';
                 analysisEl.routeSvg.innerHTML =
                     `<path class="route-line" d="${d}" />` +
                     `<circle class="route-start" cx="${start[0].toFixed(2)}" cy="${start[1].toFixed(2)}" r="4" />` +
@@ -2049,7 +2072,8 @@
                     requestAnimationFrame(() => requestAnimationFrame(buildMap));
                 } else if (analysisEl.routeSvg) {
                     if (analysisLmap) { try { analysisLmap.remove(); } catch {} analysisLmap = null; }
-                    drawRouteSvgFallback(pts, minLat, maxLat, minLon, maxLon, cosLat, M_PER_DEG, wM, hM);
+                    const svgH = (opts && opts.svgHeight) || 240;
+                    drawRouteSvgFallback(pts, minLat, maxLat, minLon, maxLon, cosLat, M_PER_DEG, wM, hM, { height: svgH });
                 }
 
                 if (analysisEl.routeSub) {
@@ -2579,9 +2603,12 @@
                     // Swap the live Leaflet map for the SVG fallback during capture.
                     // html2canvas can't capture cross-origin tile images, so the
                     // leaflet container otherwise renders as a blank dark strip.
+                    // SVG fallback also sizes the polyline to its natural aspect,
+                    // killing the wide empty margins around short routes.
                     const hadRoute = !!(analysisState.lastSamples && analysisLastRoutePts);
                     if (hadRoute) {
-                        try { renderRouteSvg(analysisState.lastSamples, { forceSvg: true }); } catch (_) {}
+                        const svgH = preset.narrow ? 280 : 240;
+                        try { renderRouteSvg(analysisState.lastSamples, { forceSvg: true, svgHeight: svgH }); } catch (_) {}
                     }
                     // Give layout a frame to reflow, then redraw chart at the new size
                     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
