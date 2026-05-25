@@ -2051,11 +2051,18 @@
 
             function computeMaxPaceSecPerKm(samples) {
                 // Smooth GPS speed over a ~15s rolling window, then take the max.
-                // Returns sec/km, or null if there isn't usable speed data.
+                // Caps per-sample speeds at a sane human limit so a single GPS
+                // teleport (e.g. a 30 m/s lat/lon jump) can't drag the window
+                // average up. Returns sec/km, or null if no usable speed data.
                 if (!Array.isArray(samples) || samples.length < 4) return null;
+
+                // 8 m/s ~= 18 mph ~= 4:10/km pace. Faster than any sustainable
+                // walk/run pace, so we treat anything above this as a GPS glitch.
+                const MAX_REAL_SPEED = 8.0;
                 const pts = samples
                     .filter(s => s && isFinite(s.t) && s.speed != null && isFinite(s.speed))
-                    .sort((a, b) => a.t - b.t);
+                    .sort((a, b) => a.t - b.t)
+                    .map(s => ({ t: s.t, speed: Math.min(s.speed, MAX_REAL_SPEED) }));
                 if (pts.length < 4) return null;
                 const WINDOW = 15;     // seconds
                 const MIN_SPEED = 0.5; // m/s — ignore stops

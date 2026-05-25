@@ -775,8 +775,11 @@
                     const dt = (fix.t - state.lastFix.t) / 1000;
                     const d = haversineM(state.lastFix, fix);
                     const v = dt > 0 ? d / dt : 0;
-                    // reject GPS jumps: >50 m/s (180 km/h) or accuracy > 50m
-                    if (v < 50 && c.accuracy < 50) {
+                    // Reject GPS jumps that aren't physically plausible:
+                    //  - speed cap: 8 m/s (~18 mph, faster than any walk/run pace)
+                    //  - accuracy: only trust fixes within 30 m
+                    //  - tiny moves (<= 1 m) are likely jitter when standing still
+                    if (v < 8 && c.accuracy < 30 && d > 1) {
                         state.distanceM += d;
                         state.paceSamples.push({ t: fix.t, distanceM: state.distanceM });
                         const cutoff = fix.t - 8000;
