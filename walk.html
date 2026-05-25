@@ -712,6 +712,7 @@
                     el.gpsPill.classList.add('bad');
                     el.gpsPillText.textContent = 'GPS: off';
                     el.btnGps.textContent = 'Enable GPS';
+                    if (el.routeMiniCard) el.routeMiniCard.hidden = true;
                     return;
                 }
                 el.gpsPill.classList.remove('ok','bad');
@@ -724,6 +725,7 @@
                     timeout: 30000
                 });
                 state.gpsEnabled = true;
+                renderMiniRoute();
             }
             function onGpsFix(pos) {
                 const c = pos.coords;
@@ -754,17 +756,32 @@
                         while (state.paceSamples.length > 1 && state.paceSamples[0].t < cutoff) {
                             state.paceSamples.shift();
                         }
-                        // accumulate route points for the live mini map
-                        const rp = state.routePoints;
-                        const last = rp.length ? rp[rp.length - 1] : null;
-                        if (!last || haversineM(last, fix) >= 2) {
-                            rp.push({ lat: fix.lat, lon: fix.lon });
-                            // cap stored points so very long sessions stay smooth
-                            if (rp.length > 4000) rp.splice(0, rp.length - 4000);
-                        }
-                        renderMiniRoute();
                         updateDistanceDisplay();
                         updatePaceDisplay();
+                    }
+                }
+
+                // route point accumulation — runs whenever GPS is on so the
+                // mini map fills in while you stand around waiting to Start.
+                // Looser accuracy cutoff than distance (120 m) so the map
+                // still appears with imperfect cell-tower fixes; we still
+                // reject the (0,0) "no fix" placeholder and impossibly large
+                // jumps so the picture stays sane.
+                if (Number.isFinite(fix.lat) && Number.isFinite(fix.lon) &&
+                    !(fix.lat === 0 && fix.lon === 0) && c.accuracy < 120) {
+                    const rp = state.routePoints;
+                    const last = rp.length ? rp[rp.length - 1] : null;
+                    let accept = true;
+                    if (last && state.lastFix) {
+                        const dt2 = (fix.t - state.lastFix.t) / 1000;
+                        const d2 = haversineM(last, fix);
+                        if (dt2 > 0 && d2 / dt2 > 80) accept = false; // > 290 km/h = teleport
+                        if (d2 < 2) accept = false; // de-dupe near-stationary fixes
+                    }
+                    if (accept) {
+                        rp.push({ lat: fix.lat, lon: fix.lon });
+                        if (rp.length > 4000) rp.splice(0, rp.length - 4000);
+                        renderMiniRoute();
                     }
                 }
                 state.lastFix = fix;
@@ -780,7 +797,24 @@
                 const svg = el.routeMiniSvg, card = el.routeMiniCard;
                 if (!svg || !card) return;
                 const pts = state.routePoints;
-                if (!pts || pts.length < 2) { card.hidden = true; return; }
+
+                // Show the card whenever GPS is enabled so the user has
+                // visible confirmation the feature exists; fill it with a
+                // gentle placeholder until enough movement is captured.
+                if (!state.gpsEnabled) { card.hidden = true; return; }
+                card.hidden = false;
+
+                if (!pts || pts.length < 2) {
+                    svg.innerHTML =
+                        '<text x="150" y="74" text-anchor="middle" ' +
+                        'fill="currentColor" opacity="0.45" ' +
+                        'font-size="11" font-family="system-ui,sans-serif" ' +
+                        'letter-spacing="0.18em">WAITING FOR GPS MOVEMENT…</text>';
+                    if (el.routeMiniSub) {
+                        el.routeMiniSub.textContent = pts && pts.length ? '1 fix' : '0 fixes';
+                    }
+                    return;
+                }
 
                 let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
                 for (const p of pts) {
@@ -794,7 +828,17 @@
                 const M = 111320;
                 const wM = (maxLon - minLon) * cosLat * M;
                 const hM = (maxLat - minLat) * M;
-                if (Math.max(wM, hM) < 5) { card.hidden = true; return; }
+                if (Math.max(wM, hM) < 3) {
+                    svg.innerHTML =
+                        '<text x="150" y="74" text-anchor="middle" ' +
+                        'fill="currentColor" opacity="0.45" ' +
+                        'font-size="11" font-family="system-ui,sans-serif" ' +
+                        'letter-spacing="0.18em">WAITING FOR GPS MOVEMENT…</text>';
+                    if (el.routeMiniSub) {
+                        el.routeMiniSub.textContent = pts.length + ' fixes · stationary';
+                    }
+                    return;
+                }
 
                 const PAD = 8, VB_W = 300, VB_H = 140;
                 const innerW = VB_W - PAD * 2, innerH = VB_H - PAD * 2;
@@ -826,7 +870,6 @@
                 if (el.routeMiniSub) {
                     el.routeMiniSub.textContent = '~' + spanM + ' m span · ' + pts.length + ' fixes';
                 }
-                card.hidden = false;
             }
             el.btnGps.addEventListener('click', enableGps);
 
