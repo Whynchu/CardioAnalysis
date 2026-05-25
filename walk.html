@@ -827,7 +827,8 @@
                     doubleClickZoom: false,
                     boxZoom: false,
                     keyboard: false,
-                    tap: false
+                    tap: false,
+                    renderer: window.L.canvas({ padding: 0.5 })
                 }).setView([startLatLon.lat, startLatLon.lon], 17);
                 try { lmap.attributionControl.setPrefix(false); } catch {}
                 window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

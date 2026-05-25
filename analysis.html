@@ -1975,35 +1975,42 @@
                     if (analysisEl.routeSvg) analysisEl.routeSvg.style.display = 'none';
                     if (analysisLmap) { try { analysisLmap.remove(); } catch {} analysisLmap = null; }
                     analysisEl.routeLeaflet.innerHTML = '';
-                    analysisLmap = window.L.map(analysisEl.routeLeaflet, {
-                        zoomControl: true,
-                        attributionControl: true,
-                        scrollWheelZoom: false
-                    });
-                    try { analysisLmap.attributionControl.setPrefix(false); } catch {}
-                    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        maxZoom: 19,
-                        attribution: '© OpenStreetMap'
-                    }).addTo(analysisLmap);
                     const accent = getComputedStyle(document.documentElement)
                         .getPropertyValue('--accent').trim() || '#c0322f';
                     const latlngs = pts.map(p => [p.lat, p.lon]);
-                    const line = window.L.polyline(latlngs, {
-                        color: accent, weight: 4, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
-                    }).addTo(analysisLmap);
-                    window.L.circleMarker(latlngs[0], {
-                        radius: 6, color: accent, fillColor: accent, fillOpacity: 1, weight: 0
-                    }).addTo(analysisLmap);
-                    window.L.circleMarker(latlngs[latlngs.length - 1], {
-                        radius: 6, color: '#fff', fillColor: '#0b0f18', fillOpacity: 1, weight: 2
-                    }).addTo(analysisLmap);
-                    analysisLmap.fitBounds(line.getBounds().pad(0.15));
-                    setTimeout(() => {
-                        try {
-                            analysisLmap.invalidateSize();
-                            analysisLmap.fitBounds(line.getBounds().pad(0.15));
-                        } catch {}
-                    }, 150);
+                    // Defer map creation so the container has a real, non-zero size.
+                    // Otherwise Leaflet's SVG overlay renderer locks in a 0x0 viewBox
+                    // and the polyline paints at zero length under the tiles.
+                    const buildMap = () => {
+                        analysisLmap = window.L.map(analysisEl.routeLeaflet, {
+                            zoomControl: true,
+                            attributionControl: true,
+                            scrollWheelZoom: false,
+                            renderer: window.L.canvas({ padding: 0.5 })
+                        });
+                        try { analysisLmap.attributionControl.setPrefix(false); } catch {}
+                        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 19,
+                            attribution: '© OpenStreetMap'
+                        }).addTo(analysisLmap);
+                        const line = window.L.polyline(latlngs, {
+                            color: accent, weight: 4, opacity: 0.95, lineCap: 'round', lineJoin: 'round'
+                        }).addTo(analysisLmap);
+                        window.L.circleMarker(latlngs[0], {
+                            radius: 6, color: accent, fillColor: accent, fillOpacity: 1, weight: 0
+                        }).addTo(analysisLmap);
+                        window.L.circleMarker(latlngs[latlngs.length - 1], {
+                            radius: 6, color: '#fff', fillColor: '#0b0f18', fillOpacity: 1, weight: 2
+                        }).addTo(analysisLmap);
+                        analysisLmap.fitBounds(line.getBounds().pad(0.15));
+                        requestAnimationFrame(() => {
+                            try {
+                                analysisLmap.invalidateSize();
+                                analysisLmap.fitBounds(line.getBounds().pad(0.15));
+                            } catch {}
+                        });
+                    };
+                    requestAnimationFrame(() => requestAnimationFrame(buildMap));
                 } else if (analysisEl.routeSvg) {
                     // Offline fallback — render the SVG outline
                     analysisEl.routeLeaflet && (analysisEl.routeLeaflet.style.display = 'none');
