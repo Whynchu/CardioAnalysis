@@ -581,15 +581,51 @@
             display: none !important;
         }
 
-        .analysis-panel.export-narrow .stat-strip { grid-template-columns: repeat(2, 1fr); }
+        .analysis-panel.export-narrow .stat-strip { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+        .analysis-panel.export-narrow .stat-tile { padding: 14px 16px; gap: 14px; }
+        .analysis-panel.export-narrow .stat-tile .stat-icon { width: 42px; height: 42px; border-radius: 10px; }
+        .analysis-panel.export-narrow .stat-tile .stat-icon svg { width: 24px; height: 24px; }
+        .analysis-panel.export-narrow .stat-tile .stat-label { font-size: 0.7rem; }
+        .analysis-panel.export-narrow .stat-tile .stat-value { font-size: 1.7rem; }
+        .analysis-panel.export-narrow .stat-tile .stat-unit { font-size: 0.85rem; }
         .analysis-panel.export-narrow .bottom-grid { grid-template-columns: 1fr; }
-        .analysis-panel.export-narrow #analysisChart { height: 280px; }
+        .analysis-panel.export-narrow #analysisChart { height: 360px; }
+        .analysis-panel.export-narrow .analysis-card { padding: 16px 18px; }
+        .analysis-panel.export-narrow .analysis-card-title { font-size: 0.78rem; margin-bottom: 12px; }
+
+        /* Full-width zone bars in narrow/story mode */
         .analysis-panel.export-narrow .zones-table {
-            grid-template-columns: 36px 1fr 90px 56px 60px;
-            font-size: 0.85rem;
+            grid-template-columns: 38px 1fr auto auto auto;
+            gap: 4px 12px;
+            font-size: 0.95rem;
         }
-        .analysis-panel.export-narrow .session-notes { font-size: 0.92rem; line-height: 1.55; }
-        .analysis-panel.export-narrow .summary-row .stext .sval { font-size: 1rem; }
+        .analysis-panel.export-narrow .zones-table .zthead { font-size: 0.65rem; }
+        .analysis-panel.export-narrow .zones-table .zrange { font-size: 0.85rem; }
+        .analysis-panel.export-narrow .zones-table .zchip {
+            width: 36px; padding: 5px 0; font-size: 0.78rem; border-radius: 7px;
+        }
+        .analysis-panel.export-narrow .zones-table > div:empty { display: none; }
+        .analysis-panel.export-narrow .zones-table .zbar {
+            grid-column: 1 / -1;
+            height: 14px;
+            margin: 2px 0 8px;
+        }
+        .analysis-panel.export-narrow .zones-table .ztotal,
+        .analysis-panel.export-narrow .zones-table .ztotal-val {
+            font-size: 0.8rem;
+        }
+
+        .analysis-panel.export-narrow .session-notes { font-size: 1rem; line-height: 1.6; }
+        .analysis-panel.export-narrow .summary-row { padding: 8px 0; gap: 14px; }
+        .analysis-panel.export-narrow .summary-row .sicon { width: 34px; height: 34px; border-radius: 8px; }
+        .analysis-panel.export-narrow .summary-row .sicon svg { width: 18px; height: 18px; }
+        .analysis-panel.export-narrow .summary-row .stext .slabel { font-size: 0.78rem; }
+        .analysis-panel.export-narrow .summary-row .stext .sval { font-size: 1.15rem; }
+
+        .analysis-panel.export-narrow .analysis-title { font-size: 1.5rem; }
+        .analysis-panel.export-narrow .analysis-sub { font-size: 0.95rem; }
+        .analysis-panel.export-narrow .analysis-title-icon { width: 42px; height: 42px; border-radius: 10px; }
+        .analysis-panel.export-narrow .analysis-title-icon svg { width: 26px; height: 26px; }
 
         .export-select {
             background: var(--panel);
