@@ -475,6 +475,17 @@
             align-items: center;
             justify-content: center;
         }
+        /* During image export the SVG fallback is shown — give the
+           route card a subtle dark map-like backdrop so the polyline
+           doesn't look like it's floating on an empty card. */
+        .analysis-panel.exporting .route-wrap {
+            background:
+                radial-gradient(circle at 50% 50%, rgba(192, 50, 47, 0.05) 0%, transparent 65%),
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px) 0 0 / 28px 28px,
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px) 0 0 / 28px 28px,
+                #0a0e18;
+            border-color: rgba(255,255,255,0.08);
+        }
         .route-svg {
             width: 100%;
             height: auto;
@@ -2595,45 +2606,49 @@
                     const panel = analysisEl.panel;
                     const prevWidth = panel.style.width;
                     const prevMaxWidth = panel.style.maxWidth;
+
+                    // Create a full-screen overlay so the user doesn't see the
+                    // panel resize/reflow while we prep the export. Especially
+                    // on mobile where panelW (900-1800) is wider than the
+                    // viewport and would otherwise look like the page zoomed.
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = [
+                        'position:fixed', 'inset:0', 'z-index:99999',
+                        'background:rgba(8,10,16,0.92)',
+                        'display:flex', 'align-items:center', 'justify-content:center',
+                        'flex-direction:column', 'gap:14px',
+                        'color:#e5e8ef', 'font:600 14px/1.4 system-ui,sans-serif',
+                        'letter-spacing:0.08em', 'text-transform:uppercase'
+                    ].join(';');
+                    overlay.innerHTML =
+                        '<div style="width:36px;height:36px;border-radius:50%;border:3px solid rgba(255,255,255,0.15);border-top-color:var(--accent);animation:spin 0.8s linear infinite;"></div>' +
+                        '<div>Exporting image…</div>' +
+                        '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+                    document.body.appendChild(overlay);
+
                     panel.classList.add('exporting');
                     if (preset.narrow) panel.classList.add('export-narrow');
                     if (preset.panelW) {
                         panel.style.width = preset.panelW + 'px';
                         panel.style.maxWidth = preset.panelW + 'px';
                     }
-                    // Give layout a couple frames to reflow under the new width/class
+                    // Swap the live Leaflet map for the SVG fallback during capture.
+                    // CARTO tiles are CORS-enabled in theory, but the handshake is
+                    // flaky in practice (cache, retries) and a missing tile makes
+                    // the map come out completely blank. SVG fallback always works.
+                    const hadRoute = !!(analysisState.lastSamples && analysisLastRoutePts);
+                    if (hadRoute) {
+                        const svgH = preset.narrow ? 280 : 240;
+                        try { renderRouteSvg(analysisState.lastSamples, { forceSvg: true, svgHeight: svgH }); } catch (_) {}
+                    }
+                    // Two frames for layout to reflow under new width/class
                     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
                     if (analysisState.lastSamples) {
                         try { drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax); } catch (_) {}
                     }
-                    // If the route map is showing, invalidate its size at the new
-                    // layout, refit bounds, then wait for tiles to actually load
-                    // so html2canvas captures the dark basemap (not a blank box).
-                    if (analysisLmap) {
-                        try {
-                            analysisLmap.invalidateSize();
-                            if (analysisLastRoutePts && analysisLastRoutePts.length) {
-                                const llb = window.L.latLngBounds(analysisLastRoutePts.map(p => [p.lat, p.lon]));
-                                analysisLmap.fitBounds(llb.pad(0.15));
-                            }
-                        } catch (_) {}
-                        await new Promise((resolve) => {
-                            let done = false;
-                            const finish = () => { if (!done) { done = true; resolve(); } };
-                            // Wait until the tile layer fires 'load' OR 1.2s timeout
-                            try {
-                                analysisLmap.eachLayer((layer) => {
-                                    if (layer instanceof window.L.TileLayer) {
-                                        if (layer.isLoading && !layer.isLoading()) { finish(); return; }
-                                        layer.once('load', finish);
-                                    }
-                                });
-                            } catch (_) {}
-                            setTimeout(finish, 1200);
-                        });
-                        // One more frame so the canvas-rendered polyline paints over the new tiles
-                        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                    }
+                    // One more frame after the chart redraw so its new height
+                    // is included in scrollHeight.
+                    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
                     try {
                         const cs = getComputedStyle(root);
                         const outsideBg = (cs.getPropertyValue('--outside-bg') || '#111').trim() || '#111';
@@ -2649,7 +2664,7 @@
                             backgroundColor: null,
                             scale: 2,
                             useCORS: true,
-                            allowTaint: false,
+                            allowTaint: true,
                             logging: false,
                             // Force the capture viewport to the desired panel width so mobile
                             // browsers (with viewports smaller than panelW) don't clip the layout.
@@ -2728,6 +2743,7 @@
                         if (analysisState.lastSamples) {
                             try { drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax); } catch (_) {}
                         }
+                        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
                     }
                 });
             }
