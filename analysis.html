@@ -2576,6 +2576,13 @@
                         panel.style.width = preset.panelW + 'px';
                         panel.style.maxWidth = preset.panelW + 'px';
                     }
+                    // Swap the live Leaflet map for the SVG fallback during capture.
+                    // html2canvas can't capture cross-origin tile images, so the
+                    // leaflet container otherwise renders as a blank dark strip.
+                    const hadRoute = !!(analysisState.lastSamples && analysisLastRoutePts);
+                    if (hadRoute) {
+                        try { renderRouteSvg(analysisState.lastSamples, { forceSvg: true }); } catch (_) {}
+                    }
                     // Give layout a frame to reflow, then redraw chart at the new size
                     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
                     if (analysisState.lastSamples) {
@@ -2659,6 +2666,10 @@
                         panel.classList.remove('export-narrow');
                         panel.style.width = prevWidth;
                         panel.style.maxWidth = prevMaxWidth;
+                        // Restore the live Leaflet map after capture.
+                        if (analysisState.lastSamples) {
+                            try { renderRouteSvg(analysisState.lastSamples); } catch (_) {}
+                        }
                         await new Promise(r => requestAnimationFrame(r));
                         if (analysisState.lastSamples) {
                             try { drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax); } catch (_) {}
