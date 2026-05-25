@@ -495,15 +495,16 @@
         }
         .route-svg .route-start { fill: var(--accent); }
         .route-svg .route-end { fill: #0b0f18; }
-        .analysis-panel.export-narrow .route-svg { max-height: 480px; }
+        .route-svg { max-height: 260px; }
+        .analysis-panel.export-narrow .route-svg { max-height: 300px; }
         #routeLeaflet {
             width: 100%;
-            height: 340px;
+            height: 260px;
             border-radius: 8px;
             overflow: hidden;
             background: #0a0e18;
         }
-        .analysis-panel.export-narrow #routeLeaflet { height: 480px; }
+        .analysis-panel.export-narrow #routeLeaflet { height: 300px; }
         #routeLeaflet.leaflet-container { background: #0a0e18; font-family: inherit; }
         #routeLeaflet .leaflet-control-attribution {
             background: rgba(10, 14, 24, 0.7);
@@ -1948,11 +1949,41 @@
             }
 
             let analysisLmap = null;
-            function renderRouteSvg(samples) {
+            let analysisLastRoutePts = null;
+            function drawRouteSvgFallback(pts, minLat, maxLat, minLon, maxLon, cosLat, M_PER_DEG, wM, hM) {
+                if (!analysisEl.routeSvg) return;
+                if (analysisEl.routeLeaflet) analysisEl.routeLeaflet.style.display = 'none';
+                analysisEl.routeSvg.style.display = 'block';
+                const xs = pts.map(p => (p.lon - minLon) * cosLat * M_PER_DEG);
+                const ys = pts.map(p => (maxLat - p.lat) * M_PER_DEG);
+                const PAD = 6;
+                const W = Math.max(wM, 1), H = Math.max(hM, 1);
+                const aspect = W / H;
+                let vbW, vbH;
+                if (aspect > 3) { vbW = 300; vbH = Math.max(60, 300 / aspect); }
+                else if (aspect < 1/3) { vbH = 300; vbW = Math.max(60, 300 * aspect); }
+                else { vbW = 300; vbH = Math.round(300 / aspect); }
+                const sx = (vbW - PAD * 2) / W, sy = (vbH - PAD * 2) / H;
+                const s = Math.min(sx, sy);
+                const drawW = W * s, drawH = H * s;
+                const offX = (vbW - drawW) / 2, offY = (vbH - drawH) / 2;
+                const coords = xs.map((x, i) => [offX + x * s, offY + ys[i] * s]);
+                const d = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c[0].toFixed(2)},${c[1].toFixed(2)}`).join(' ');
+                const start = coords[0], end = coords[coords.length - 1];
+                analysisEl.routeSvg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+                analysisEl.routeSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                analysisEl.routeSvg.innerHTML =
+                    `<path class="route-line" d="${d}" />` +
+                    `<circle class="route-start" cx="${start[0].toFixed(2)}" cy="${start[1].toFixed(2)}" r="4" />` +
+                    `<circle class="route-end" cx="${end[0].toFixed(2)}" cy="${end[1].toFixed(2)}" r="4" />`;
+            }
+            function renderRouteSvg(samples, opts) {
+                const forceSvg = !!(opts && opts.forceSvg);
                 if (!analysisEl.routeCard) return;
                 const pts = (samples || []).filter(s => s && s.lat != null && s.lon != null);
                 if (pts.length < 3) {
                     analysisEl.routeCard.hidden = true;
+                    analysisLastRoutePts = null;
                     return;
                 }
                 let minLat = pts[0].lat, maxLat = pts[0].lat;
@@ -1970,12 +2001,14 @@
                 const hM = (maxLat - minLat) * M_PER_DEG;
                 if (!isFinite(wM) || !isFinite(hM) || (wM < 5 && hM < 5)) {
                     analysisEl.routeCard.hidden = true;
+                    analysisLastRoutePts = null;
                     return;
                 }
                 analysisEl.routeCard.hidden = false;
+                analysisLastRoutePts = pts;
 
                 const haveLeaflet = typeof window !== 'undefined' && typeof window.L !== 'undefined';
-                if (haveLeaflet && analysisEl.routeLeaflet) {
+                if (haveLeaflet && analysisEl.routeLeaflet && !forceSvg) {
                     analysisEl.routeLeaflet.style.display = 'block';
                     if (analysisEl.routeSvg) analysisEl.routeSvg.style.display = 'none';
                     if (analysisLmap) { try { analysisLmap.remove(); } catch {} analysisLmap = null; }
@@ -1983,9 +2016,6 @@
                     const accent = getComputedStyle(document.documentElement)
                         .getPropertyValue('--accent').trim() || '#c0322f';
                     const latlngs = pts.map(p => [p.lat, p.lon]);
-                    // Defer map creation so the container has a real, non-zero size.
-                    // Otherwise Leaflet's SVG overlay renderer locks in a 0x0 viewBox
-                    // and the polyline paints at zero length under the tiles.
                     const buildMap = () => {
                         analysisLmap = window.L.map(analysisEl.routeLeaflet, {
                             zoomControl: true,
@@ -2018,30 +2048,8 @@
                     };
                     requestAnimationFrame(() => requestAnimationFrame(buildMap));
                 } else if (analysisEl.routeSvg) {
-                    // Offline fallback — render the SVG outline
-                    analysisEl.routeLeaflet && (analysisEl.routeLeaflet.style.display = 'none');
-                    analysisEl.routeSvg.style.display = 'block';
-                    const xs = pts.map(p => (p.lon - minLon) * cosLat * M_PER_DEG);
-                    const ys = pts.map(p => (maxLat - p.lat) * M_PER_DEG);
-                    const PAD = 6;
-                    const W = Math.max(wM, 1), H = Math.max(hM, 1);
-                    const aspect = W / H;
-                    let vbW, vbH;
-                    if (aspect > 3) { vbW = 300; vbH = Math.max(60, 300 / aspect); }
-                    else if (aspect < 1/3) { vbH = 300; vbW = Math.max(60, 300 * aspect); }
-                    else { vbW = 300; vbH = Math.round(300 / aspect); }
-                    const sx = (vbW - PAD * 2) / W, sy = (vbH - PAD * 2) / H;
-                    const s = Math.min(sx, sy);
-                    const drawW = W * s, drawH = H * s;
-                    const offX = (vbW - drawW) / 2, offY = (vbH - drawH) / 2;
-                    const coords = xs.map((x, i) => [offX + x * s, offY + ys[i] * s]);
-                    const d = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c[0].toFixed(2)},${c[1].toFixed(2)}`).join(' ');
-                    const start = coords[0], end = coords[coords.length - 1];
-                    analysisEl.routeSvg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
-                    analysisEl.routeSvg.innerHTML =
-                        `<path class="route-line" d="${d}" />` +
-                        `<circle class="route-start" cx="${start[0].toFixed(2)}" cy="${start[1].toFixed(2)}" r="4" />` +
-                        `<circle class="route-end" cx="${end[0].toFixed(2)}" cy="${end[1].toFixed(2)}" r="4" />`;
+                    if (analysisLmap) { try { analysisLmap.remove(); } catch {} analysisLmap = null; }
+                    drawRouteSvgFallback(pts, minLat, maxLat, minLon, maxLon, cosLat, M_PER_DEG, wM, hM);
                 }
 
                 if (analysisEl.routeSub) {
