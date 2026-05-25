@@ -6,7 +6,7 @@
     <title>HR Timer Session Review</title>
     <style>
         :root {
-            --theme-color: #0868c0;
+            --theme-color: #c0322f;
             --accent: var(--theme-color);
             --accent-dark: color-mix(in srgb, var(--accent) 65%, black);
             --accent-bright: color-mix(in srgb, var(--accent) 75%, white);
@@ -35,17 +35,20 @@
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            align-items: center;
-            padding: 12px;
+            align-items: flex-start;
+            padding: 16px;
         }
 
         .analysis-panel {
-            width: min(95vw, 980px);
+            width: min(96vw, 1180px);
             background: var(--card);
-            border: 1px solid var(--accent);
+            border: 1px solid color-mix(in srgb, var(--accent) 55%, #000);
             border-radius: 18px;
             padding: clamp(14px, 2.5vmin, 22px);
-            box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 20%, black);
+            box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 18%, black);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
         }
 
         .analysis-header {
@@ -56,75 +59,72 @@
             justify-content: space-between;
         }
 
+        .analysis-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .analysis-title-icon {
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+            background: color-mix(in srgb, var(--accent) 12%, transparent);
+            border-radius: 10px;
+        }
+
+        .analysis-title-icon svg {
+            width: 22px;
+            height: 22px;
+        }
+
         .analysis-title {
             font-weight: 800;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            font-size: clamp(1rem, 2.2vmin, 1.2rem);
+            font-size: clamp(1.05rem, 2.2vmin, 1.35rem);
+            line-height: 1.1;
         }
 
         .analysis-sub {
             color: var(--muted);
-            font-size: 0.9rem;
-            margin-top: 4px;
-        }
-
-        .analysis-score {
-            --score-band: #2f80ff;
-            --score-glow: rgba(47, 128, 255, 0.45);
-            background: var(--panel);
-            border: 1px solid color-mix(in srgb, var(--score-band) 55%, #000);
-            border-radius: 16px;
-            padding: 12px 16px 14px;
-            min-width: 220px;
-            text-align: center;
-            position: relative;
-            box-shadow: 0 0 24px rgba(0,0,0,0.3);
-        }
-
-        .analysis-score::before {
-            content: "";
-            position: absolute;
-            left: 12px;
-            right: 12px;
-            top: 10px;
-            height: 5px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, color-mix(in srgb, var(--score-band) 30%, #000), var(--score-band));
-            opacity: 0.95;
-        }
-
-        .analysis-score .score-label {
-            text-transform: uppercase;
-            font-size: 0.65rem;
-            letter-spacing: 0.18em;
-            color: var(--muted);
-            margin-top: 8px;
-        }
-
-        .analysis-score .score-value {
-            font-size: 3.4rem;
-            font-weight: 900;
-            margin: 6px 0 2px;
-            color: #fff;
-            text-shadow: none;
-        }
-
-        .analysis-score .score-type {
-            font-size: 0.95rem;
-            color: var(--text);
-        }
-
-        .analysis-score .score-desc {
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.16em;
-            color: color-mix(in srgb, var(--score-band) 70%, #fff);
+            font-size: 0.85rem;
             margin-top: 2px;
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gear-btn {
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid rgba(255,255,255,0.08);
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gear-btn:hover {
+            border-color: color-mix(in srgb, var(--accent) 50%, #000);
+        }
+
+        .analysis-score-hidden {
+            display: none !important;
+        }
+
         .profile-banner {
-            margin-top: 12px;
             background: var(--panel);
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 12px;
@@ -149,7 +149,23 @@
             flex-wrap: wrap;
             gap: 10px;
             align-items: center;
-            margin-top: 14px;
+            background: var(--panel);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 10px 12px;
+            overflow: hidden;
+            transition: max-height 200ms ease, padding 200ms ease, opacity 160ms ease, margin 200ms ease;
+            max-height: 240px;
+        }
+
+        .analysis-controls.collapsed {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            opacity: 0;
+            border-color: transparent;
+            margin: 0;
+            pointer-events: none;
         }
 
         .analysis-controls .btn {
@@ -304,100 +320,297 @@
             color: #ff9a9a;
         }
 
-        .analysis-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-            gap: 12px;
-            margin-top: 16px;
-        }
-
         .analysis-card {
             background: var(--panel);
-            border: 1px solid color-mix(in srgb, var(--accent) 35%, #000);
+            border: 1px solid rgba(255,255,255,0.08);
             border-radius: 14px;
-            padding: 12px;
+            padding: 14px;
         }
 
         .analysis-card-title {
             text-transform: uppercase;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             letter-spacing: 0.18em;
-            color: var(--muted);
+            color: var(--accent);
             margin-bottom: 10px;
+            font-weight: 700;
         }
 
-        .analysis-metric {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            margin-bottom: 6px;
-        }
-
-        .analysis-metric strong {
-            font-size: 1.05rem;
-        }
-
-        .zone-row {
+        .stat-strip {
             display: grid;
-            grid-template-columns: 36px 1fr 48px;
-            gap: 8px;
-            align-items: center;
-            margin-bottom: 6px;
-            font-size: 0.85rem;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
         }
 
-        .zone-bar {
-            width: 100%;
-            height: 8px;
+        .stat-tile {
+            background: var(--panel);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stat-tile .stat-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: color-mix(in srgb, var(--accent) 14%, transparent);
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .stat-tile .stat-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .stat-tile.minhr .stat-icon {
+            color: var(--zone1);
+            background: color-mix(in srgb, var(--zone1) 16%, transparent);
+        }
+
+        .stat-tile .stat-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .stat-tile .stat-label {
+            font-size: 0.7rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .stat-tile .stat-value {
+            font-size: 1.4rem;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .stat-tile .stat-unit {
+            font-size: 0.75rem;
+            color: var(--muted);
+            font-weight: 500;
+            margin-left: 3px;
+        }
+
+        .hero-chart {
+            background: var(--panel);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 14px 14px 10px;
+        }
+
+        .hero-chart-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .hero-chart-title {
+            font-size: 0.8rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .hero-chart-summary {
+            font-size: 0.78rem;
+            color: var(--muted);
+            display: flex;
+            gap: 14px;
+        }
+
+        .hero-chart-summary strong {
+            color: var(--text);
+            font-weight: 700;
+        }
+
+        .analysis-chart {
             background: var(--chart-bg, #0c0f18);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.06);
+            padding: 6px;
+        }
+
+        #analysisChart {
+            width: 100%;
+            height: 360px;
+            display: block;
+        }
+
+        .bottom-grid {
+            display: grid;
+            grid-template-columns: 1.25fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        .zones-table {
+            display: grid;
+            grid-template-columns: 36px 1fr 1.4fr 50px 56px;
+            gap: 6px 10px;
+            align-items: center;
+            font-size: 0.82rem;
+        }
+
+        .zones-table .zthead {
+            font-size: 0.62rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .zones-table .zthead.right { text-align: right; }
+
+        .zones-table .zchip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: #0b0f18;
+            border-radius: 6px;
+            padding: 3px 0;
+            width: 30px;
+            letter-spacing: 0.04em;
+        }
+
+        .zones-table .zname { color: var(--text); }
+        .zones-table .zrange { color: var(--muted); font-size: 0.78rem; }
+
+        .zones-table .zbar {
+            height: 10px;
+            background: rgba(255,255,255,0.05);
             border-radius: 999px;
             overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.1);
         }
 
-        .zone-fill {
+        .zones-table .zbar > div {
             height: 100%;
             width: 0%;
             border-radius: inherit;
             transition: width 0.6s ease;
         }
 
-        .analysis-chart {
-            margin-top: 16px;
-            background: var(--chart-bg, #0c0f18);
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.08);
-            padding: 8px;
+        .zones-table .zpct,
+        .zones-table .ztime {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
         }
 
-        #analysisChart {
-            width: 100%;
-            height: 180px;
-            display: block;
+        .zones-table .ztime { color: var(--muted); }
+
+        .zones-table .ztotal {
+            color: var(--muted);
+            grid-column: 1 / -2;
+            text-align: right;
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            margin-top: 4px;
+        }
+
+        .zones-table .ztotal-val {
+            text-align: right;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            margin-top: 4px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .summary-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+        }
+
+        .summary-row + .summary-row {
+            border-top: 1px dashed rgba(255,255,255,0.06);
+        }
+
+        .summary-row .sicon {
+            width: 30px;
+            height: 30px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+            background: color-mix(in srgb, var(--accent) 12%, transparent);
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+
+        .summary-row .sicon svg { width: 16px; height: 16px; }
+
+        .summary-row .stext { display: flex; flex-direction: column; line-height: 1.2; }
+        .summary-row .stext .slabel { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.06em; }
+        .summary-row .stext .sval { font-size: 0.95rem; font-weight: 700; }
+
+        .session-notes {
+            font-size: 0.85rem;
+            line-height: 1.55;
+            color: var(--text);
+            white-space: pre-line;
+        }
+
+        .session-notes em {
+            color: var(--accent);
+            font-style: normal;
+            font-weight: 700;
+        }
+
+        @media (max-width: 880px) {
+            .stat-strip { grid-template-columns: repeat(2, 1fr); }
+            .bottom-grid { grid-template-columns: 1fr; }
+            #analysisChart { height: 280px; }
+        }
+
+        @media (max-width: 520px) {
+            .stat-strip { grid-template-columns: 1fr; }
+            #analysisChart { height: 240px; }
+            .zones-table { grid-template-columns: 30px 1fr 1fr 44px 50px; font-size: 0.74rem; }
         }
     </style>
 </head>
 <body>
     <section class="analysis-panel" id="analysisPanel">
         <div class="analysis-header">
-            <div>
-                <div class="analysis-title">HR Timer Session Review</div>
-                <div class="analysis-sub">Upload a CSV from the HR timer to score the session and classify the training.</div>
+            <div class="analysis-title-wrap">
+                <span class="analysis-title-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>
+                </span>
+                <div>
+                    <div class="analysis-title" id="analysisTitleText">HR Session Review</div>
+                    <div class="analysis-sub" id="analysisDate">Load a CSV to begin</div>
+                </div>
             </div>
-            <div class="analysis-score" id="analysisScoreCard">
-                <div class="score-label">Session Score</div>
-                <div class="score-value" id="analysisScore">--</div>
-                <div class="score-type" id="analysisType">No data</div>
-                <div class="score-desc" id="analysisScoreDesc">---</div>
+            <div class="header-actions">
+                <button class="gear-btn" id="settingsToggle" type="button" title="Show controls" aria-label="Toggle controls">⚙</button>
             </div>
         </div>
+
         <div class="profile-banner" id="analysisProfileBanner">
             <strong id="analysisProfileName">No profile loaded</strong>
             <span class="muted" id="analysisProfileMeta">Use Profile to set age, height, and weight.</span>
             <span class="muted" id="analysisSessionType"></span>
         </div>
 
-        <div class="analysis-controls">
+        <div class="analysis-controls collapsed" id="analysisControls">
             <label class="analysis-file">
                 <input type="file" id="analysisFile" accept=".csv" />
                 <span>Select CSV</span>
@@ -407,7 +620,7 @@
             </select>
             <label class="analysis-color">
                 Accent
-                <input type="color" id="analysisColor" value="#0868c0" />
+                <input type="color" id="analysisColor" value="#c0322f" />
             </label>
             <button class="btn" id="logToggle" type="button">LOG</button>
             <select id="analysisClear">
@@ -419,44 +632,166 @@
             <div class="analysis-status" id="analysisStatus">No file loaded.</div>
         </div>
 
-
-        <div class="analysis-grid">
-            <div class="analysis-card">
-                <div class="analysis-card-title">Session</div>
-                <div class="analysis-metric"><span>Duration</span><strong id="analysisDuration">--</strong></div>
-                <div class="analysis-metric"><span>Avg HR</span><strong id="analysisAvg">--</strong></div>
-                <div class="analysis-metric"><span>Min HR</span><strong id="analysisMin">--</strong></div>
-                <div class="analysis-metric"><span>Max HR</span><strong id="analysisMax">--</strong></div>
-            </div>
-
-            <div class="analysis-card">
-                <div class="analysis-card-title">Intensity</div>
-                <div class="analysis-metric"><span>Effort Score</span><strong id="analysisEffort">--</strong></div>
-                    <div class="zone-row"><span id="zone1Label">Z1</span><div class="zone-bar" id="zone1BarWrap"><div class="zone-fill" id="zone1Bar" style="background: var(--zone1);"></div></div><em id="zone1Val">--</em></div>
-                    <div class="zone-row"><span id="zone2Label">Z2</span><div class="zone-bar" id="zone2BarWrap"><div class="zone-fill" id="zone2Bar" style="background: var(--zone2);"></div></div><em id="zone2Val">--</em></div>
-                    <div class="zone-row"><span id="zone3Label">Z3</span><div class="zone-bar" id="zone3BarWrap"><div class="zone-fill" id="zone3Bar" style="background: var(--zone3);"></div></div><em id="zone3Val">--</em></div>
-                    <div class="zone-row"><span id="zone4Label">Z4</span><div class="zone-bar" id="zone4BarWrap"><div class="zone-fill" id="zone4Bar" style="background: var(--zone4);"></div></div><em id="zone4Val">--</em></div>
-                    <div class="zone-row"><span id="zone5Label">Z5</span><div class="zone-bar" id="zone5BarWrap"><div class="zone-fill" id="zone5Bar" style="background: var(--zone5);"></div></div><em id="zone5Val">--</em></div>
-                </div>
-
-            <div class="analysis-card">
-                <div class="analysis-card-title">Peaks</div>
-                <div class="analysis-metric"><span>Peak Count</span><strong id="analysisPeakCount">--</strong></div>
-                <div class="analysis-metric"><span>Total Peak Time</span><strong id="analysisPeakTime">--</strong></div>
-                <div class="analysis-metric"><span>Longest Peak</span><strong id="analysisPeakLongest">--</strong></div>
-            </div>
-
-                <div class="analysis-card">
-                    <div class="analysis-card-title">Cooldown</div>
-                    <div class="analysis-metric"><span>Cooldown Time</span><strong id="analysisCooldownTime">--</strong></div>
-                    <div class="analysis-metric"><span>HR Drop</span><strong id="analysisCooldownDrop">--</strong></div>
-                    <div class="analysis-metric"><span>Drop Rate</span><strong id="analysisCooldownRate">--</strong></div>
-                    <div class="analysis-metric"><span>Rest Efficiency</span><strong id="analysisRestEff">--</strong></div>
+        <div class="stat-strip">
+            <div class="stat-tile">
+                <span class="stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6M5 5l-2-2"/></svg>
+                </span>
+                <div class="stat-meta">
+                    <span class="stat-label">Duration</span>
+                    <span><span class="stat-value" id="analysisDuration">--</span><span class="stat-unit">min</span></span>
                 </div>
             </div>
+            <div class="stat-tile">
+                <span class="stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6.5 5.5 5.5 0 0 1 21.5 12C19 16.5 12 21 12 21z"/></svg>
+                </span>
+                <div class="stat-meta">
+                    <span class="stat-label">Average HR</span>
+                    <span><span class="stat-value" id="analysisAvg">--</span><span class="stat-unit">bpm</span></span>
+                </div>
+            </div>
+            <div class="stat-tile">
+                <span class="stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>
+                </span>
+                <div class="stat-meta">
+                    <span class="stat-label">Max HR</span>
+                    <span><span class="stat-value" id="analysisMax">--</span><span class="stat-unit">bpm</span></span>
+                </div>
+            </div>
+            <div class="stat-tile minhr">
+                <span class="stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6.5 5.5 5.5 0 0 1 21.5 12C19 16.5 12 21 12 21z"/></svg>
+                </span>
+                <div class="stat-meta">
+                    <span class="stat-label">Min HR</span>
+                    <span><span class="stat-value" id="analysisMin">--</span><span class="stat-unit">bpm</span></span>
+                </div>
+            </div>
+        </div>
 
-        <div class="analysis-chart">
-            <canvas id="analysisChart"></canvas>
+        <div class="hero-chart">
+            <div class="hero-chart-head">
+                <div class="hero-chart-title">Heart Rate (BPM)</div>
+                <div class="hero-chart-summary">
+                    <span>Average HR: <strong id="heroAvg">--</strong></span>
+                    <span>Max HR: <strong id="heroMax">--</strong></span>
+                    <span>Min HR: <strong id="heroMin">--</strong></span>
+                </div>
+            </div>
+            <div class="analysis-chart">
+                <canvas id="analysisChart"></canvas>
+            </div>
+        </div>
+
+        <div class="bottom-grid">
+            <div class="analysis-card">
+                <div class="analysis-card-title">Time in Heart Rate Zones</div>
+                <div class="zones-table" id="zonesTable">
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                    <div class="zthead right">% of Time</div>
+                    <div class="zthead right">Time</div>
+
+                    <div><span class="zchip" style="background: var(--zone5);">Z5</span></div>
+                    <div class="zname">Maximum</div>
+                    <div class="zrange" id="zone5Range">--</div>
+                    <div class="zpct" id="zone5Val">--</div>
+                    <div class="ztime" id="zone5Time">--</div>
+
+                    <div></div>
+                    <div></div>
+                    <div class="zbar"><div id="zone5Bar" style="background: var(--zone5);"></div></div>
+                    <div></div>
+                    <div></div>
+
+                    <div><span class="zchip" style="background: var(--zone4);">Z4</span></div>
+                    <div class="zname">Hard</div>
+                    <div class="zrange" id="zone4Range">--</div>
+                    <div class="zpct" id="zone4Val">--</div>
+                    <div class="ztime" id="zone4Time">--</div>
+
+                    <div></div>
+                    <div></div>
+                    <div class="zbar"><div id="zone4Bar" style="background: var(--zone4);"></div></div>
+                    <div></div>
+                    <div></div>
+
+                    <div><span class="zchip" style="background: var(--zone3);">Z3</span></div>
+                    <div class="zname">Moderate</div>
+                    <div class="zrange" id="zone3Range">--</div>
+                    <div class="zpct" id="zone3Val">--</div>
+                    <div class="ztime" id="zone3Time">--</div>
+
+                    <div></div>
+                    <div></div>
+                    <div class="zbar"><div id="zone3Bar" style="background: var(--zone3);"></div></div>
+                    <div></div>
+                    <div></div>
+
+                    <div><span class="zchip" style="background: var(--zone2);">Z2</span></div>
+                    <div class="zname">Light</div>
+                    <div class="zrange" id="zone2Range">--</div>
+                    <div class="zpct" id="zone2Val">--</div>
+                    <div class="ztime" id="zone2Time">--</div>
+
+                    <div></div>
+                    <div></div>
+                    <div class="zbar"><div id="zone2Bar" style="background: var(--zone2);"></div></div>
+                    <div></div>
+                    <div></div>
+
+                    <div><span class="zchip" style="background: var(--zone1);">Z1</span></div>
+                    <div class="zname">Very Light</div>
+                    <div class="zrange" id="zone1Range">--</div>
+                    <div class="zpct" id="zone1Val">--</div>
+                    <div class="ztime" id="zone1Time">--</div>
+
+                    <div></div>
+                    <div></div>
+                    <div class="zbar"><div id="zone1Bar" style="background: var(--zone1);"></div></div>
+                    <div></div>
+                    <div></div>
+
+                    <div class="ztotal">Total</div>
+                    <div class="ztotal-val" id="zoneTotalTime">--</div>
+                </div>
+            </div>
+
+            <div class="analysis-card">
+                <div class="analysis-card-title">Session Summary</div>
+                <div class="summary-row">
+                    <span class="sicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span>
+                    <div class="stext"><span class="slabel">Peak Heart Rate</span><span class="sval" id="summaryPeakHr">--</span></div>
+                </div>
+                <div class="summary-row">
+                    <span class="sicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                    <div class="stext"><span class="slabel">High Intensity Time (Z4–Z5)</span><span class="sval" id="summaryHiTime">--</span></div>
+                </div>
+                <div class="summary-row">
+                    <span class="sicon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6.5 5.5 5.5 0 0 1 21.5 12C19 16.5 12 21 12 21z"/></svg></span>
+                    <div class="stext"><span class="slabel">Average Heart Rate</span><span class="sval" id="summaryAvgHr">--</span></div>
+                </div>
+                <div class="summary-row">
+                    <span class="sicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l3 7h5l-4 4 1 7-5-3-5 3 1-7-4-4h5z"/></svg></span>
+                    <div class="stext"><span class="slabel">Effort Score</span><span class="sval" id="summaryEffort">--</span></div>
+                </div>
+                <div class="summary-row">
+                    <span class="sicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l4-8 4 6 3-3 7 5"/></svg></span>
+                    <div class="stext"><span class="slabel">Peaks</span><span class="sval" id="summaryPeaks">--</span></div>
+                </div>
+                <div class="summary-row">
+                    <span class="sicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v6m0 0l-3-3m3 3l3-3M5 12a7 7 0 0 0 14 0"/></svg></span>
+                    <div class="stext"><span class="slabel">Recovery</span><span class="sval" id="summaryRecovery">--</span></div>
+                </div>
+            </div>
+
+            <div class="analysis-card">
+                <div class="analysis-card-title">Session Notes</div>
+                <div class="session-notes" id="sessionNotes">Load a CSV to see automatic session notes based on zones, peaks, and recovery.</div>
+            </div>
         </div>
     </section>
 
@@ -483,25 +818,18 @@
                 file: $('#analysisFile'),
                 sample: $('#analysisSample'),
                 status: $('#analysisStatus'),
-                score: $('#analysisScore'),
-                type: $('#analysisType'),
-                scoreCard: $('#analysisScoreCard'),
-                scoreDesc: $('#analysisScoreDesc'),
                 profileName: $('#analysisProfileName'),
                 profileMeta: $('#analysisProfileMeta'),
                 sessionType: $('#analysisSessionType'),
+                titleText: $('#analysisTitleText'),
+                date: $('#analysisDate'),
                 duration: $('#analysisDuration'),
                 avg: $('#analysisAvg'),
                 min: $('#analysisMin'),
                 max: $('#analysisMax'),
-                effort: $('#analysisEffort'),
-                peakCount: $('#analysisPeakCount'),
-                peakTime: $('#analysisPeakTime'),
-                peakLongest: $('#analysisPeakLongest'),
-                cooldownTime: $('#analysisCooldownTime'),
-                cooldownDrop: $('#analysisCooldownDrop'),
-                cooldownRate: $('#analysisCooldownRate'),
-                restEff: $('#analysisRestEff'),
+                heroAvg: $('#heroAvg'),
+                heroMax: $('#heroMax'),
+                heroMin: $('#heroMin'),
                 zoneBars: {
                     z1: $('#zone1Bar'),
                     z2: $('#zone2Bar'),
@@ -516,20 +844,30 @@
                     z4: $('#zone4Val'),
                     z5: $('#zone5Val')
                 },
-                zoneLabels: {
-                    z1: $('#zone1Label'),
-                    z2: $('#zone2Label'),
-                    z3: $('#zone3Label'),
-                    z4: $('#zone4Label'),
-                    z5: $('#zone5Label')
+                zoneTimes: {
+                    z1: $('#zone1Time'),
+                    z2: $('#zone2Time'),
+                    z3: $('#zone3Time'),
+                    z4: $('#zone4Time'),
+                    z5: $('#zone5Time')
                 },
-                zoneWraps: {
-                    z1: $('#zone1BarWrap'),
-                    z2: $('#zone2BarWrap'),
-                    z3: $('#zone3BarWrap'),
-                    z4: $('#zone4BarWrap'),
-                    z5: $('#zone5BarWrap')
+                zoneRanges: {
+                    z1: $('#zone1Range'),
+                    z2: $('#zone2Range'),
+                    z3: $('#zone3Range'),
+                    z4: $('#zone4Range'),
+                    z5: $('#zone5Range')
                 },
+                zoneTotalTime: $('#zoneTotalTime'),
+                summaryPeakHr: $('#summaryPeakHr'),
+                summaryHiTime: $('#summaryHiTime'),
+                summaryAvgHr: $('#summaryAvgHr'),
+                summaryEffort: $('#summaryEffort'),
+                summaryPeaks: $('#summaryPeaks'),
+                summaryRecovery: $('#summaryRecovery'),
+                sessionNotes: $('#sessionNotes'),
+                controls: $('#analysisControls'),
+                settingsToggle: $('#settingsToggle'),
                 chart: $('#analysisChart'),
                 color: $('#analysisColor'),
                 logToggle: $('#logToggle'),
@@ -1112,6 +1450,8 @@
 
                 return {
                     totalTime,
+                    zoneBase,
+                    workTime,
                     avgHr,
                     minHr,
                     maxHr,
@@ -1148,7 +1488,7 @@
                 ctx.clearRect(0, 0, width, height);
                 const cs = getComputedStyle(root);
                 const chartBg = (cs.getPropertyValue('--chart-bg') || '').trim() || '#0c0f18';
-                const chartGrid = (cs.getPropertyValue('--chart-grid') || '').trim() || 'rgba(255,255,255,0.1)';
+                const chartGrid = (cs.getPropertyValue('--chart-grid') || '').trim() || 'rgba(255,255,255,0.10)';
                 const chartLine = (cs.getPropertyValue('--chart-line') || '').trim() || '#56a0ff';
                 ctx.fillStyle = chartBg;
                 ctx.fillRect(0, 0, width, height);
@@ -1156,18 +1496,30 @@
                 const accentHex = (cs.getPropertyValue('--accent') || '').trim() || '#56a0ff';
                 const accentRgb = hexToRgb(accentHex) || { r: 86, g: 160, b: 255 };
                 const roundTint = `rgba(${accentRgb.r}, ${accentRgb.g}, ${accentRgb.b}, 0.10)`;
+                const axisColor = 'rgba(255,255,255,0.55)';
+                const gridColor = 'rgba(255,255,255,0.06)';
 
+                const zoneColors = {
+                    z1: (cs.getPropertyValue('--zone1') || '#59a3d0').trim(),
+                    z2: (cs.getPropertyValue('--zone2') || '#63c29c').trim(),
+                    z3: (cs.getPropertyValue('--zone3') || '#d7c35e').trim(),
+                    z4: (cs.getPropertyValue('--zone4') || '#f39c4c').trim(),
+                    z5: (cs.getPropertyValue('--zone5') || '#e85d5d').trim()
+                };
+
+                // Y-axis range: round to nearest 20s, leave headroom
                 const hrValues = samples.map(s => s.hr).filter(v => isFinite(v));
                 const vMin = Math.min(...hrValues);
                 const vMax = Math.max(...hrValues);
-                const hrLow = Math.max(30, Math.floor(vMin - 5));
-                const hrHigh = Math.min(hrMax, Math.ceil(vMax + 5));
+                const z1Threshold = Math.round(hrMax * 0.5);
+                const hrLow = Math.max(40, Math.floor((Math.min(vMin, z1Threshold) - 5) / 20) * 20);
+                const hrHigh = Math.ceil((Math.max(vMax, hrMax * 0.9) + 5) / 20) * 20;
                 const range = Math.max(1, hrHigh - hrLow);
 
-                const padLeft = 28 * scale;
-                const padRight = 10 * scale;
-                const padTop = 10 * scale;
-                const padBottom = 18 * scale;
+                const padLeft = 44 * scale;
+                const padRight = 14 * scale;
+                const padTop = 28 * scale;     // room for R# labels
+                const padBottom = 38 * scale;  // room for x-axis ticks + label
                 const plotW = width - padLeft - padRight;
                 const plotH = height - padTop - padBottom;
 
@@ -1176,72 +1528,135 @@
                 const windowSpan = Math.max(1e-6, windowEnd - windowStart);
                 const workSegs = collectWorkSegments(samples);
 
+                const yForHr = (hr) => padTop + (1 - ((hr - hrLow) / range)) * plotH;
+                const xForT = (t) => padLeft + ((t - windowStart) / windowSpan) * plotW;
+
+                // Round bands
                 ctx.save();
                 ctx.beginPath();
                 ctx.rect(padLeft, padTop, plotW, plotH);
                 ctx.clip();
-
                 for (const seg of workSegs) {
                     const a = Math.max(windowStart, seg.start);
                     const b = Math.min(windowEnd, seg.end);
                     if (b <= a) continue;
-                    const x1 = padLeft + ((a - windowStart) / windowSpan) * plotW;
-                    const x2 = padLeft + ((b - windowStart) / windowSpan) * plotW;
+                    const x1 = xForT(a);
+                    const x2 = xForT(b);
                     const w = Math.max(0, x2 - x1);
                     ctx.fillStyle = roundTint;
                     ctx.fillRect(x1, padTop, w, plotH);
-
-                    if (w >= 44 && seg.round != null) {
-                        ctx.font = `${9 * scale}px system-ui`;
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'top';
-                        ctx.fillStyle = 'rgba(255,255,255,0.65)';
-                        ctx.fillText(`ROUND ${seg.round + 1}`, x1 + w / 2, padTop + 2 * scale);
-                    }
                 }
-
                 ctx.restore();
 
-                ctx.strokeStyle = chartGrid;
+                // R# labels above plot
+                ctx.font = `${10 * scale}px Poppins, system-ui, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillStyle = axisColor;
+                workSegs.forEach((seg, i) => {
+                    const a = Math.max(windowStart, seg.start);
+                    const b = Math.min(windowEnd, seg.end);
+                    if (b <= a) return;
+                    const cx = (xForT(a) + xForT(b)) / 2;
+                    const w = xForT(b) - xForT(a);
+                    if (w >= 18 * scale) {
+                        const label = seg.round != null ? `R${seg.round + 1}` : `R${i + 1}`;
+                        ctx.fillText(label, cx, padTop - 6 * scale);
+                    }
+                });
+
+                // Y gridlines at 20bpm increments
+                ctx.strokeStyle = gridColor;
                 ctx.lineWidth = 1 * scale;
                 ctx.beginPath();
-                for (let i = 0; i <= 4; i++) {
-                    const y = padTop + (plotH * i / 4);
+                const yStep = 20;
+                for (let v = hrLow; v <= hrHigh; v += yStep) {
+                    const y = yForHr(v);
                     ctx.moveTo(padLeft, y);
                     ctx.lineTo(width - padRight, y);
                 }
                 ctx.stroke();
 
+                // Zone reference lines (Z1..Z5 thresholds)
+                const zoneThresholds = [
+                    { key: 'z1', label: 'Z1', hr: hrMax * 0.5 },
+                    { key: 'z2', label: 'Z2', hr: hrMax * 0.6 },
+                    { key: 'z3', label: 'Z3', hr: hrMax * 0.7 },
+                    { key: 'z4', label: 'Z4', hr: hrMax * 0.8 },
+                    { key: 'z5', label: 'Z5', hr: hrMax * 0.9 }
+                ];
+                ctx.save();
+                ctx.setLineDash([4 * scale, 4 * scale]);
+                ctx.lineWidth = 1 * scale;
+                ctx.font = `${10 * scale}px Poppins, system-ui, sans-serif`;
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'left';
+                for (const z of zoneThresholds) {
+                    if (z.hr < hrLow || z.hr > hrHigh) continue;
+                    const y = yForHr(z.hr);
+                    ctx.strokeStyle = zoneColors[z.key];
+                    ctx.beginPath();
+                    ctx.moveTo(padLeft, y);
+                    ctx.lineTo(width - padRight, y);
+                    ctx.stroke();
+                    ctx.fillStyle = zoneColors[z.key];
+                    ctx.fillText(z.label, padLeft + 4 * scale, y - 8 * scale);
+                }
+                ctx.restore();
+
+                // HR line
                 ctx.strokeStyle = chartLine;
                 ctx.lineWidth = 2 * scale;
+                ctx.lineJoin = 'round';
                 ctx.beginPath();
                 samples.forEach((s, i) => {
-                    const x = padLeft + (plotW * i / (samples.length - 1));
-                    const y = padTop + (1 - ((s.hr - hrLow) / range)) * plotH;
+                    const x = xForT(s.t);
+                    const y = yForHr(s.hr);
                     if (i === 0) ctx.moveTo(x, y);
                     else ctx.lineTo(x, y);
                 });
                 ctx.stroke();
 
-                ctx.fillStyle = chartGrid;
+                // Y-axis labels (bpm) — left of plot
+                ctx.fillStyle = axisColor;
                 ctx.font = `${10 * scale}px Poppins, system-ui, sans-serif`;
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
-                for (let i = 0; i <= 4; i++) {
-                    const value = Math.round(hrHigh - (range * i / 4));
-                    const y = padTop + (plotH * i / 4);
-                    ctx.fillText(value.toString(), padLeft - 6 * scale, y);
+                for (let v = hrLow; v <= hrHigh; v += yStep) {
+                    ctx.fillText(String(v), padLeft - 6 * scale, yForHr(v));
                 }
 
-                const totalSeconds = Math.max(1, Math.round(samples.length));
-                const tickCount = 4;
+                // X-axis: minute ticks
+                const totalSeconds = Math.max(1, windowEnd - windowStart);
+                const totalMinutes = totalSeconds / 60;
+                let minuteStep = 1;
+                if (totalMinutes > 80) minuteStep = 10;
+                else if (totalMinutes > 40) minuteStep = 4;
+                else if (totalMinutes > 20) minuteStep = 2;
+                else if (totalMinutes > 10) minuteStep = 1;
+                else minuteStep = 1;
+
+                ctx.fillStyle = axisColor;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'top';
-                for (let i = 0; i <= tickCount; i++) {
-                    const tSec = Math.round((totalSeconds * i) / tickCount);
-                    const x = padLeft + (plotW * i / tickCount);
-                    ctx.fillText(formatDuration(tSec), x, padTop + plotH + 4 * scale);
+                ctx.font = `${10 * scale}px Poppins, system-ui, sans-serif`;
+                for (let m = 0; m <= totalMinutes + 0.001; m += minuteStep) {
+                    const tSec = m * 60;
+                    const x = xForT(windowStart + tSec);
+                    if (x < padLeft - 1 || x > width - padRight + 1) continue;
+                    ctx.fillText(String(Math.round(m)), x, padTop + plotH + 6 * scale);
                 }
+
+                // X-axis label
+                ctx.fillStyle = axisColor;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.font = `${9 * scale}px Poppins, system-ui, sans-serif`;
+                ctx.save();
+                ctx.fillStyle = 'rgba(255,255,255,0.45)';
+                const lblY = padTop + plotH + 24 * scale;
+                ctx.fillText('TIME (MINUTES)', padLeft + plotW / 2, lblY);
+                ctx.restore();
             }
 
             function collectWorkSegments(samples) {
@@ -1327,93 +1742,140 @@
                 analysisEl.logModal.setAttribute('aria-hidden', 'true');
             }
 
+            function buildSessionNotes(results, meta) {
+                if (!results) return '';
+                const lines = [];
+                const sessionType = (meta.session_type || results.sessionType || '').toLowerCase();
+                const zones = results.zonePct || {};
+                const hiPct = ((zones.z4 || 0) + (zones.z5 || 0)) * 100;
+                const lowPct = ((zones.z1 || 0) + (zones.z2 || 0)) * 100;
+                const minutes = Math.round((results.totalTime || 0) / 60);
+                const dominantZone = ['z1','z2','z3','z4','z5']
+                    .reduce((best, k) => (zones[k] > (zones[best] || 0) ? k : best), 'z1');
+                const zoneLabel = { z1: 'recovery (Z1)', z2: 'light aerobic (Z2)', z3: 'moderate (Z3)', z4: 'hard (Z4)', z5: 'maximum (Z5)' };
+
+                lines.push(`${minutes} min ${results.trainingType.toLowerCase()} session.`);
+
+                if (results.peakCount >= 3) {
+                    lines.push(`${results.peakCount} near-max peaks (${formatDuration(results.peakTime)} total) — strong anaerobic stimulus.`);
+                } else if (results.peakCount > 0) {
+                    lines.push(`${results.peakCount} near-max peak${results.peakCount > 1 ? 's' : ''} reached.`);
+                }
+
+                if (hiPct >= 25) {
+                    lines.push(`${hiPct.toFixed(0)}% of time in Z4–Z5 — high cardiovascular load.`);
+                } else if (lowPct >= 60 && sessionType !== 'weight') {
+                    lines.push(`Mostly ${zoneLabel[dominantZone]} — recovery-oriented work.`);
+                } else {
+                    lines.push(`Time predominantly spent in ${zoneLabel[dominantZone]}.`);
+                }
+
+                if (results.restEffScore != null) {
+                    const r = Math.round(results.restEffScore);
+                    if (r >= 70) lines.push(`Recovery efficiency ${r}/100 — excellent inter-round HR drop.`);
+                    else if (r >= 50) lines.push(`Recovery efficiency ${r}/100 — solid rest-interval control.`);
+                    else lines.push(`Recovery efficiency ${r}/100 — limited HR drop between work bouts.`);
+                }
+
+                if (results.cooldownPresent && isFinite(results.cooldownDrop)) {
+                    lines.push(`Cooldown: ${Math.round(results.cooldownDrop)} bpm drop over ${formatDuration(results.cooldownDuration)}.`);
+                }
+
+                return lines.join('\n');
+            }
+
+            function formatBpm(v) { return isFinite(v) ? `${Math.round(v)} bpm` : '--'; }
+            function formatDurationMin(seconds) {
+                if (!isFinite(seconds)) return '--';
+                return (seconds / 60).toFixed(seconds < 600 ? 1 : 0);
+            }
+
             function updateAnalysisUI(samples, results, fileName, remember = true, meta = {}) {
                 if (!results) return;
-                const formatPct = (value) => `${Math.round(value * 100)}%`;
-                analysisEl.duration.textContent = formatDuration(results.totalTime);
-                analysisEl.avg.textContent = isFinite(results.avgHr) ? `${Math.round(results.avgHr)} bpm` : '--';
-                analysisEl.min.textContent = isFinite(results.minHr) ? `${Math.round(results.minHr)} bpm` : '--';
-                analysisEl.max.textContent = isFinite(results.maxHr) ? `${Math.round(results.maxHr)} bpm` : '--';
-                analysisEl.effort.textContent = `${Math.round(results.effortScore)}/100`;
+                const formatPct = (value) => `${(value * 100).toFixed(1)}%`;
+                const hrMaxValue = results.hrMax || 0;
 
-                const roundedScore = isFinite(results.totalScore) ? Math.round(results.totalScore) : null;
-                analysisEl.score.textContent = roundedScore != null ? roundedScore.toString() : '--';
-                analysisEl.type.textContent = results.trainingType;
-                if (analysisEl.scoreDesc) {
-                    let desc = '---';
-                    if (roundedScore != null) {
-                        if (roundedScore >= 85) desc = 'High output';
-                        else if (roundedScore >= 65) desc = 'Above baseline';
-                        else desc = 'Recovery-focused';
-                    }
-                    analysisEl.scoreDesc.textContent = desc;
+                // Stat strip
+                analysisEl.duration.textContent = formatDurationMin(results.totalTime);
+                analysisEl.avg.textContent = isFinite(results.avgHr) ? `${Math.round(results.avgHr)}` : '--';
+                analysisEl.min.textContent = isFinite(results.minHr) ? `${Math.round(results.minHr)}` : '--';
+                analysisEl.max.textContent = isFinite(results.maxHr) ? `${Math.round(results.maxHr)}` : '--';
+
+                // Hero chart inline summary
+                if (analysisEl.heroAvg) analysisEl.heroAvg.textContent = formatBpm(results.avgHr);
+                if (analysisEl.heroMax) analysisEl.heroMax.textContent = formatBpm(results.maxHr);
+                if (analysisEl.heroMin) analysisEl.heroMin.textContent = formatBpm(results.minHr);
+
+                // Title + date
+                const sessionDate = meta.session_date || meta.date || '';
+                if (analysisEl.titleText) {
+                    const st = (meta.session_type || results.sessionType || '').toLowerCase();
+                    const heading = st === 'striker' ? 'STRIKER — HR SESSION'
+                        : st === 'weight' ? 'WEIGHTS — HR SESSION'
+                        : st === 'mixed' ? 'MIXED — HR SESSION'
+                        : st === 'muay_thai' || st === 'muaythai' ? 'MUAY THAI — HR SESSION'
+                        : 'HR SESSION REVIEW';
+                    analysisEl.titleText.textContent = heading;
                 }
-                if (analysisEl.scoreCard) {
-                    let band = '#2f80ff';
-                    if (results.trainingType === 'Threshold / Hard Tempo') {
-                        band = '#ff9a3d';
-                    } else if (results.trainingType === 'High-Intensity Intervals' || results.trainingType === 'Mixed / Combat') {
-                        band = '#ff4d4d';
-                    } else if (results.trainingType === 'Aerobic Base / Recovery' || results.trainingType === 'Steady Endurance') {
-                        band = '#2f80ff';
+                if (analysisEl.date) {
+                    if (sessionDate) {
+                        analysisEl.date.textContent = sessionDate;
+                    } else {
+                        const today = new Date();
+                        analysisEl.date.textContent = today.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                     }
-                    analysisEl.scoreCard.style.setProperty('--score-band', band);
                 }
 
+                // Zone bars + values + time + range
                 const zones = results.zonePct;
-                analysisEl.zoneBars.z1.style.width = `${zones.z1 * 100}%`;
-                analysisEl.zoneBars.z2.style.width = `${zones.z2 * 100}%`;
-                analysisEl.zoneBars.z3.style.width = `${zones.z3 * 100}%`;
-                analysisEl.zoneBars.z4.style.width = `${zones.z4 * 100}%`;
-                analysisEl.zoneBars.z5.style.width = `${zones.z5 * 100}%`;
+                const zoneBase = results.zoneBase || results.workTime || results.totalTime || 0;
+                const zoneRanges = {
+                    z1: `50–${Math.round(hrMaxValue * 0.6) - 1} bpm`,
+                    z2: `${Math.round(hrMaxValue * 0.6)}–${Math.round(hrMaxValue * 0.7) - 1} bpm`,
+                    z3: `${Math.round(hrMaxValue * 0.7)}–${Math.round(hrMaxValue * 0.8) - 1} bpm`,
+                    z4: `${Math.round(hrMaxValue * 0.8)}–${Math.round(hrMaxValue * 0.9) - 1} bpm`,
+                    z5: `${Math.round(hrMaxValue * 0.9)}–${Math.round(hrMaxValue)} bpm`
+                };
+                ['z1','z2','z3','z4','z5'].forEach(k => {
+                    if (analysisEl.zoneBars[k]) analysisEl.zoneBars[k].style.width = `${zones[k] * 100}%`;
+                    if (analysisEl.zoneVals[k]) analysisEl.zoneVals[k].textContent = formatPct(zones[k]);
+                    if (analysisEl.zoneTimes[k]) analysisEl.zoneTimes[k].textContent = formatDuration(zones[k] * zoneBase);
+                    if (analysisEl.zoneRanges[k]) analysisEl.zoneRanges[k].textContent = zoneRanges[k];
+                });
+                if (analysisEl.zoneTotalTime) analysisEl.zoneTotalTime.textContent = formatDuration(zoneBase);
 
-                analysisEl.zoneVals.z1.textContent = formatPct(zones.z1);
-                analysisEl.zoneVals.z2.textContent = formatPct(zones.z2);
-                analysisEl.zoneVals.z3.textContent = formatPct(zones.z3);
-                analysisEl.zoneVals.z4.textContent = formatPct(zones.z4);
-                analysisEl.zoneVals.z5.textContent = formatPct(zones.z5);
-
-                analysisEl.peakCount.textContent = results.peakCount.toString();
-                analysisEl.peakTime.textContent = formatDuration(results.peakTime);
-                analysisEl.peakLongest.textContent = formatDuration(results.longestPeak);
-
-                if (results.cooldownPresent) {
-                    analysisEl.cooldownTime.textContent = formatDuration(results.cooldownDuration);
-                    analysisEl.cooldownDrop.textContent = isFinite(results.cooldownDrop)
-                        ? `${Math.round(results.cooldownDrop)} bpm`
-                        : '--';
-                    analysisEl.cooldownRate.textContent = isFinite(results.cooldownRate)
-                        ? `${Math.round(results.cooldownRate)} bpm/min`
-                        : '--';
-                } else {
-                    analysisEl.cooldownTime.textContent = 'None';
-                    analysisEl.cooldownDrop.textContent = '--';
-                    analysisEl.cooldownRate.textContent = '--';
+                // Session Summary card
+                const hiTime = ((zones.z4 || 0) + (zones.z5 || 0)) * zoneBase;
+                const hiPct = ((zones.z4 || 0) + (zones.z5 || 0)) * 100;
+                if (analysisEl.summaryPeakHr) analysisEl.summaryPeakHr.textContent = formatBpm(results.maxHr);
+                if (analysisEl.summaryHiTime) analysisEl.summaryHiTime.textContent = `${formatDuration(hiTime)} (${hiPct.toFixed(1)}%)`;
+                if (analysisEl.summaryAvgHr) analysisEl.summaryAvgHr.textContent = formatBpm(results.avgHr);
+                if (analysisEl.summaryEffort) analysisEl.summaryEffort.textContent = `${Math.round(results.effortScore)}/100`;
+                if (analysisEl.summaryPeaks) {
+                    const txt = results.peakCount > 0
+                        ? `${results.peakCount} (${formatDuration(results.peakTime)} total)`
+                        : 'None';
+                    analysisEl.summaryPeaks.textContent = txt;
                 }
-                if (analysisEl.restEff) {
-                    analysisEl.restEff.textContent = results.restEffScore != null
-                        ? `${Math.round(results.restEffScore)}/100`
-                        : '--';
+                if (analysisEl.summaryRecovery) {
+                    if (results.restEffScore != null) {
+                        analysisEl.summaryRecovery.textContent = `${Math.round(results.restEffScore)}/100`;
+                    } else if (results.cooldownPresent && isFinite(results.cooldownDrop)) {
+                        analysisEl.summaryRecovery.textContent = `-${Math.round(results.cooldownDrop)} bpm cooldown`;
+                    } else {
+                        analysisEl.summaryRecovery.textContent = '--';
+                    }
                 }
 
-                const hiPct = Math.round((zones.z4 + zones.z5) * 100);
+                // Session notes
+                if (analysisEl.sessionNotes) {
+                    analysisEl.sessionNotes.textContent = buildSessionNotes(results, meta);
+                }
+
                 if (analysisEl.sessionType) {
                     const sessionType = meta.session_type || results.sessionType || '';
                     analysisEl.sessionType.textContent = sessionType ? `Session: ${sessionType}` : '';
                 }
-
-                const hrMaxValue = results.hrMax || 0;
-                const zoneRanges = {
-                    z1: `Below ${Math.round(hrMaxValue * 0.6)} bpm`,
-                    z2: `${Math.round(hrMaxValue * 0.6)}-${Math.round(hrMaxValue * 0.7)} bpm`,
-                    z3: `${Math.round(hrMaxValue * 0.7)}-${Math.round(hrMaxValue * 0.8)} bpm`,
-                    z4: `${Math.round(hrMaxValue * 0.8)}-${Math.round(hrMaxValue * 0.9)} bpm`,
-                    z5: `Above ${Math.round(hrMaxValue * 0.9)} bpm`
-                };
-                Object.keys(zoneRanges).forEach(key => {
-                    if (analysisEl.zoneLabels[key]) analysisEl.zoneLabels[key].title = zoneRanges[key];
-                    if (analysisEl.zoneWraps[key]) analysisEl.zoneWraps[key].title = zoneRanges[key];
-                });
 
                 analysisState.lastSamples = samples;
                 analysisState.lastHrMax = results.hrMax;
@@ -1631,6 +2093,12 @@
             });
 
             if (analysisEl.logToggle) analysisEl.logToggle.addEventListener('click', openLog);
+
+            if (analysisEl.settingsToggle && analysisEl.controls) {
+                analysisEl.settingsToggle.addEventListener('click', () => {
+                    analysisEl.controls.classList.toggle('collapsed');
+                });
+            }
             if (analysisEl.logClose) analysisEl.logClose.addEventListener('click', closeLog);
             if (analysisEl.logModal) {
                 analysisEl.logModal.addEventListener('mousedown', (e) => {
