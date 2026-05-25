@@ -1,0 +1,36 @@
+{
+  "name": "CardioAnalysis",
+  "short_name": "Cardio",
+  "description": "HR + GPS interval timer, walk/run tracker, and session analysis.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0f18",
+  "theme_color": "#0b0f18",
+  "icons": [
+    {
+      "src": "./assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start Walk/Run",
+      "short_name": "Walk",
+      "url": "./walk.html"
+    },
+    {
+      "name": "Open Analysis",
+      "short_name": "Analysis",
+      "url": "./analysis.html"
+    },
+    {
+      "name": "Interval Timer",
+      "short_name": "Timer",
+      "url": "./hub.html"
+    }
+  ]
+}
