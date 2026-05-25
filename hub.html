@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HR Trainer Hub</title>
+    <style>
+        :root {
+            --theme-color: #0868c0;
+            --accent: var(--theme-color);
+            --accent-dark: color-mix(in srgb, var(--accent) 65%, black);
+            --accent-bright: color-mix(in srgb, var(--accent) 75%, white);
+            --bg: #0b0f18;
+            --outside-bg: color-mix(in srgb, var(--bg) 55%, #000);
+            --card: #141827;
+            --panel: #12162a;
+            --text: #f8f8f8;
+            --muted: #a0a0ad;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--outside-bg);
+            color: var(--text);
+            font-family: 'Poppins', system-ui, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+
+        .hub {
+            width: min(92vw, 880px);
+            background: var(--card);
+            border: 1px solid var(--accent);
+            border-radius: 22px;
+            padding: clamp(18px, 3vmin, 36px);
+            box-shadow: 0 0 36px color-mix(in srgb, var(--accent) 30%, black);
+        }
+
+        .hub-title {
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            font-weight: 800;
+            font-size: clamp(1.1rem, 3.4vmin, 1.8rem);
+            margin-bottom: 20px;
+        }
+
+        .hub-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .hub-card {
+            background: var(--panel);
+            border: 1px solid color-mix(in srgb, var(--accent) 45%, #000);
+            border-radius: 16px;
+            padding: 16px;
+            text-decoration: none;
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 160px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .hub-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.35);
+        }
+
+        .hub-card span {
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .hub-card strong {
+            font-size: 1.4rem;
+            letter-spacing: 0.05em;
+        }
+
+        .hub-card p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .hub-accent {
+            height: 4px;
+            width: 100%;
+            background: var(--accent);
+            border-radius: 999px;
+        }
+    </style>
+</head>
+<body>
+    <main class="hub">
+        <div class="hub-title">HR Trainer</div>
+        <div class="hub-grid">
+            <a class="hub-card" href="index.html">
+                <span>Trainer</span>
+                <strong>TIMER</strong>
+                <div class="hub-accent"></div>
+                <p>Run live rounds, track HR, and export your session CSV.</p>
+            </a>
+            <a class="hub-card" href="analysis.html">
+                <span>Review</span>
+                <strong>ANALYSIS</strong>
+                <div class="hub-accent"></div>
+                <p>Load a session CSV to score effort, peaks, and recovery.</p>
+            </a>
+            <a class="hub-card" href="profile.html">
+                <span>Fighter</span>
+                <strong>PROFILE</strong>
+                <div class="hub-accent"></div>
+                <p>Manage athlete stats to drive max HR and analysis defaults.</p>
+            </a>
+        </div>
+    </main>
+    <script>
+        (() => {
+            const root = document.documentElement;
+
+            function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+
+            function hexToRgb(hex) {
+                const h = (hex || '').trim().replace('#', '');
+                const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+                if (full.length !== 6) return null;
+                const n = parseInt(full, 16);
+                return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+            }
+
+            function rgbToHex({ r, g, b }) {
+                const to2 = v => Math.round(v).toString(16).padStart(2, '0');
+                return `#${to2(r)}${to2(g)}${to2(b)}`;
+            }
+
+            function rgbToHsl({ r, g, b }) {
+                r /= 255; g /= 255; b /= 255;
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                const d = max - min;
+                let h = 0;
+                let s = 0;
+                const l = (max + min) / 2;
+
+                if (d !== 0) {
+                    s = d / (1 - Math.abs(2 * l - 1));
+                    switch (max) {
+                        case r: h = ((g - b) / d) % 6; break;
+                        case g: h = (b - r) / d + 2; break;
+                        case b: h = (r - g) / d + 4; break;
+                    }
+                    h *= 60;
+                    if (h < 0) h += 360;
+                }
+
+                return { h, s, l };
+            }
+
+            function hslToRgb({ h, s, l }) {
+                const C = (1 - Math.abs(2 * l - 1)) * s;
+                const hp = (h % 360) / 60;
+                const X = C * (1 - Math.abs((hp % 2) - 1));
+                let r1 = 0, g1 = 0, b1 = 0;
+
+                if (0 <= hp && hp < 1) [r1, g1, b1] = [C, X, 0];
+                else if (1 <= hp && hp < 2) [r1, g1, b1] = [X, C, 0];
+                else if (2 <= hp && hp < 3) [r1, g1, b1] = [0, C, X];
+                else if (3 <= hp && hp < 4) [r1, g1, b1] = [0, X, C];
+                else if (4 <= hp && hp < 5) [r1, g1, b1] = [X, 0, C];
+                else if (5 <= hp && hp < 6) [r1, g1, b1] = [C, 0, X];
+
+                const m = l - C / 2;
+                return {
+                    r: (r1 + m) * 255,
+                    g: (g1 + m) * 255,
+                    b: (b1 + m) * 255,
+                };
+            }
+
+            function gradeAccent(hex) {
+                const rgb = hexToRgb(hex);
+                if (!rgb) return null;
+                const base = rgbToHsl(rgb);
+
+                const SHADOW_HUE = 235;
+                const HIGHLIGHT_HUE = 65;
+
+                const wrapHue = (h) => ((h % 360) + 360) % 360;
+
+                const hueDelta = (a, b) => {
+                    let d = wrapHue(b) - wrapHue(a);
+                    if (d > 180) d -= 360;
+                    if (d <= -180) d += 360;
+                    return d;
+                };
+
+                const hueLerp = (a, b, t) => wrapHue(a + hueDelta(a, b) * t);
+                const hueDist01 = (a, b) => Math.abs(hueDelta(a, b)) / 180;
+                const smoothstep01 = (t) => t * t * (3 - 2 * t);
+
+                const hueBump = (h, center, widthDeg) => {
+                    const d = Math.abs(hueDelta(h, center));
+                    let t = 1 - (d / widthDeg);
+                    t = clamp01(t);
+                    return smoothstep01(t);
+                };
+
+                const bumpRed = hueBump(base.h, 0, 42);
+                const bumpYellow = hueBump(base.h, 60, 55);
+                const bumpPink = hueBump(base.h, 320, 50);
+
+                const keepHue = 1 - (1 - bumpRed) * (1 - bumpYellow) * (1 - bumpPink);
+                const keepHighlight = 1 - (1 - bumpRed) * (1 - bumpPink);
+                const shadowPull = 1 - keepHue;
+
+                const dShadow = hueDist01(base.h, SHADOW_HUE);
+                const dHighlight = hueDist01(base.h, HIGHLIGHT_HUE);
+
+                const darkBend = clamp01(0.35 + 0.50 * dShadow);
+                const brightBend = clamp01(0.10 + 0.25 * dHighlight);
+
+                const dark = {
+                    h: hueLerp(base.h, SHADOW_HUE, darkBend * shadowPull),
+                    s: clamp01(base.s * 0.92),
+                    l: clamp01(base.l * 0.42)
+                };
+
+                const bright = {
+                    h: hueLerp(base.h, HIGHLIGHT_HUE, brightBend * (1 - keepHighlight)),
+                    s: clamp01(base.s * 1.05),
+                    l: clamp01(base.l + (1 - base.l) * 0.22)
+                };
+
+                const brightPure = {
+                    h: base.h,
+                    s: clamp01(base.s * 1.03),
+                    l: clamp01(base.l + (1 - base.l) * 0.30)
+                };
+
+                const surfaceHue = hueLerp(
+                    base.h,
+                    SHADOW_HUE,
+                    clamp01(0.55 + 0.30 * dShadow) * shadowPull
+                );
+
+                const bg = { h: surfaceHue, s: clamp01(base.s * 0.24), l: 0.08 };
+                const stage = { h: surfaceHue, s: clamp01(base.s * 0.28), l: 0.10 };
+                const card = { ...stage, l: 0.13 };
+                const panel = { ...stage, l: 0.12 };
+
+                return {
+                    accent: hex,
+                    accentDark: rgbToHex(hslToRgb(dark)),
+                    accentBright: rgbToHex(hslToRgb(bright)),
+                    accentBrightPure: rgbToHex(hslToRgb(brightPure)),
+                    bg: rgbToHex(hslToRgb(bg)),
+                    stageBg: rgbToHex(hslToRgb(stage)),
+                    card: rgbToHex(hslToRgb(card)),
+                    panel: rgbToHex(hslToRgb(panel)),
+                };
+            }
+
+            function mixHex(a, b, t) {
+                const ra = hexToRgb(a), rb = hexToRgb(b);
+                if (!ra || !rb) return a;
+                const lerp = (x, y) => x + (y - x) * t;
+                return rgbToHex({
+                    r: lerp(ra.r, rb.r),
+                    g: lerp(ra.g, rb.g),
+                    b: lerp(ra.b, rb.b)
+                });
+            }
+
+            function applyTheme(accentHex) {
+                const t = gradeAccent(accentHex);
+                if (!t) return;
+
+                root.style.setProperty('--theme-color', t.accent);
+                root.style.setProperty('--accent', t.accent);
+                root.style.setProperty('--accent-dark', t.accentDark);
+                root.style.setProperty('--accent-bright', t.accentBright);
+
+                root.style.setProperty('--bg', t.bg);
+                root.style.setProperty('--card', t.card);
+                root.style.setProperty('--panel', t.panel);
+
+                const outsideBg = mixHex(t.bg, '#000000', 0.45);
+                root.style.setProperty('--outside-bg', outsideBg);
+            }
+
+            const storedAccent = localStorage.getItem('cardioanalysis:accent');
+            if (storedAccent) {
+                applyTheme(storedAccent);
+            }
+        })();
+    </script>
+</body>
+</html>
