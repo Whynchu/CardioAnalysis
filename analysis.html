@@ -581,6 +581,19 @@
             display: none !important;
         }
 
+        .export-select {
+            background: var(--panel);
+            color: var(--text);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 6px 8px;
+            font-size: 0.78rem;
+            font-family: inherit;
+            cursor: pointer;
+            height: 32px;
+        }
+        .export-select:hover { border-color: color-mix(in srgb, var(--accent) 50%, #000); }
+
         @media (max-width: 880px) {
             .stat-strip { grid-template-columns: repeat(2, 1fr); }
             .bottom-grid { grid-template-columns: 1fr; }
@@ -607,6 +620,13 @@
                 </div>
             </div>
             <div class="header-actions">
+                <select id="exportFormat" class="export-select" title="Export aspect ratio">
+                    <option value="native">Desktop (native)</option>
+                    <option value="square">Square 1:1 (1080)</option>
+                    <option value="portrait">Portrait 4:5 (1080×1350)</option>
+                    <option value="story">Story 9:16 (1080×1920)</option>
+                    <option value="landscape">Landscape 16:9 (1920×1080)</option>
+                </select>
                 <button class="gear-btn" id="exportImageBtn" type="button" title="Download as image" aria-label="Download as image">⤓</button>
                 <button class="gear-btn" id="settingsToggle" type="button" title="Show controls" aria-label="Toggle controls">⚙</button>
             </div>
@@ -2111,36 +2131,85 @@
             }
 
             if (analysisEl.exportImage && analysisEl.panel) {
+                // panelW = width to force on the panel before capture (drives responsive reflow)
+                const FORMAT_PRESETS = {
+                    native:    { w: null, h: null, panelW: null, label: 'native' },
+                    square:    { w: 1080, h: 1080, panelW: 1040, label: 'square' },
+                    portrait:  { w: 1080, h: 1350, panelW: 1040, label: 'portrait' },
+                    story:     { w: 1080, h: 1920, panelW: 500,  label: 'story' },
+                    landscape: { w: 1920, h: 1080, panelW: 1800, label: 'landscape' }
+                };
+
                 analysisEl.exportImage.addEventListener('click', async () => {
                     if (typeof html2canvas !== 'function') {
                         alert('Image export library failed to load. Check your connection and reload the page.');
                         return;
                     }
+                    const fmtKey = (document.getElementById('exportFormat')?.value) || 'native';
+                    const preset = FORMAT_PRESETS[fmtKey] || FORMAT_PRESETS.native;
+
                     const panel = analysisEl.panel;
+                    const prevWidth = panel.style.width;
+                    const prevMaxWidth = panel.style.maxWidth;
                     panel.classList.add('exporting');
-                    // Force the chart to redraw at current size after layout change
+                    if (preset.panelW) {
+                        panel.style.width = preset.panelW + 'px';
+                        panel.style.maxWidth = preset.panelW + 'px';
+                    }
+                    // Give layout a frame to reflow, then redraw chart at the new size
+                    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
                     if (analysisState.lastSamples) {
                         try { drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax); } catch (_) {}
                     }
                     try {
-                        const bg = (getComputedStyle(root).getPropertyValue('--outside-bg') || '#111').trim() || '#111';
-                        const canvas = await html2canvas(panel, {
-                            backgroundColor: bg,
+                        const cs = getComputedStyle(root);
+                        const outsideBg = (cs.getPropertyValue('--outside-bg') || '#111').trim() || '#111';
+
+                        const captured = await html2canvas(panel, {
+                            backgroundColor: null,
                             scale: 2,
                             useCORS: true,
                             logging: false
                         });
+
+                        let outCanvas;
+                        if (preset.w && preset.h) {
+                            outCanvas = document.createElement('canvas');
+                            outCanvas.width = preset.w;
+                            outCanvas.height = preset.h;
+                            const octx = outCanvas.getContext('2d');
+                            octx.fillStyle = outsideBg;
+                            octx.fillRect(0, 0, preset.w, preset.h);
+
+                            const margin = Math.round(Math.min(preset.w, preset.h) * 0.04);
+                            const maxW = preset.w - margin * 2;
+                            const maxH = preset.h - margin * 2;
+                            const scale = Math.min(maxW / captured.width, maxH / captured.height);
+                            const drawW = Math.round(captured.width * scale);
+                            const drawH = Math.round(captured.height * scale);
+                            const dx = Math.round((preset.w - drawW) / 2);
+                            const dy = Math.round((preset.h - drawH) / 2);
+                            octx.imageSmoothingEnabled = true;
+                            octx.imageSmoothingQuality = 'high';
+                            octx.drawImage(captured, dx, dy, drawW, drawH);
+                        } else {
+                            outCanvas = captured;
+                        }
+
                         const titleStr = (analysisEl.titleText?.textContent || 'session').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
                         const dateStr = new Date().toISOString().slice(0, 10);
                         const link = document.createElement('a');
-                        link.download = `cardio-${titleStr || 'session'}-${dateStr}.png`;
-                        link.href = canvas.toDataURL('image/png');
+                        link.download = `cardio-${titleStr || 'session'}-${preset.label}-${dateStr}.png`;
+                        link.href = outCanvas.toDataURL('image/png');
                         link.click();
                     } catch (err) {
                         console.error('Image export failed', err);
                         alert('Image export failed: ' + (err?.message || err));
                     } finally {
                         panel.classList.remove('exporting');
+                        panel.style.width = prevWidth;
+                        panel.style.maxWidth = prevMaxWidth;
+                        await new Promise(r => requestAnimationFrame(r));
                         if (analysisState.lastSamples) {
                             try { drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax); } catch (_) {}
                         }
