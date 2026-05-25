@@ -511,6 +511,8 @@
             font-size: 9px;
         }
         #routeLeaflet .leaflet-control-attribution a { color: var(--accent); }
+        #routeLeaflet .leaflet-control-attribution svg,
+        #routeLeaflet .leaflet-control-attribution img { height: 10px; width: auto; display: inline-block; vertical-align: middle; }
         #routeLeaflet .leaflet-tile-pane { filter: brightness(0.78) saturate(0.85); }
 
         .zones-table {
@@ -1978,6 +1980,7 @@
                         attributionControl: true,
                         scrollWheelZoom: false
                     });
+                    try { analysisLmap.attributionControl.setPrefix(false); } catch {}
                     window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '© OpenStreetMap'

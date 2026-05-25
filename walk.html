@@ -295,6 +295,8 @@
         .route-mini .leaflet-control-attribution a {
             color: var(--accent);
         }
+        .route-mini .leaflet-control-attribution svg,
+        .route-mini .leaflet-control-attribution img { height: 10px; width: auto; display: inline-block; vertical-align: middle; }
         /* Slightly darken OSM tiles so they fit the dark UI */
         .route-mini .leaflet-tile-pane { filter: brightness(0.78) saturate(0.85); }
         .route-mini .route-line {
@@ -827,6 +829,7 @@
                     keyboard: false,
                     tap: false
                 }).setView([startLatLon.lat, startLatLon.lon], 17);
+                try { lmap.attributionControl.setPrefix(false); } catch {}
                 window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     maxZoom: 19,
                     attribution: '© OpenStreetMap'
