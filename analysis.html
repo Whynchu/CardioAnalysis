@@ -2050,6 +2050,7 @@
                         window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
                             maxZoom: 20,
                             subdomains: 'abcd',
+                            crossOrigin: 'anonymous',
                             attribution: '© OpenStreetMap contributors © CARTO'
                         }).addTo(analysisLmap);
                         const line = window.L.polyline(latlngs, {
@@ -2600,36 +2601,62 @@
                         panel.style.width = preset.panelW + 'px';
                         panel.style.maxWidth = preset.panelW + 'px';
                     }
-                    // Swap the live Leaflet map for the SVG fallback during capture.
-                    // html2canvas can't capture cross-origin tile images, so the
-                    // leaflet container otherwise renders as a blank dark strip.
-                    // SVG fallback also sizes the polyline to its natural aspect,
-                    // killing the wide empty margins around short routes.
-                    const hadRoute = !!(analysisState.lastSamples && analysisLastRoutePts);
-                    if (hadRoute) {
-                        const svgH = preset.narrow ? 280 : 240;
-                        try { renderRouteSvg(analysisState.lastSamples, { forceSvg: true, svgHeight: svgH }); } catch (_) {}
-                    }
-                    // Give layout a frame to reflow, then redraw chart at the new size
+                    // Give layout a couple frames to reflow under the new width/class
                     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
                     if (analysisState.lastSamples) {
                         try { drawAnalysisChart(analysisState.lastSamples, analysisState.lastHrMax); } catch (_) {}
+                    }
+                    // If the route map is showing, invalidate its size at the new
+                    // layout, refit bounds, then wait for tiles to actually load
+                    // so html2canvas captures the dark basemap (not a blank box).
+                    if (analysisLmap) {
+                        try {
+                            analysisLmap.invalidateSize();
+                            if (analysisLastRoutePts && analysisLastRoutePts.length) {
+                                const llb = window.L.latLngBounds(analysisLastRoutePts.map(p => [p.lat, p.lon]));
+                                analysisLmap.fitBounds(llb.pad(0.15));
+                            }
+                        } catch (_) {}
+                        await new Promise((resolve) => {
+                            let done = false;
+                            const finish = () => { if (!done) { done = true; resolve(); } };
+                            // Wait until the tile layer fires 'load' OR 1.2s timeout
+                            try {
+                                analysisLmap.eachLayer((layer) => {
+                                    if (layer instanceof window.L.TileLayer) {
+                                        if (layer.isLoading && !layer.isLoading()) { finish(); return; }
+                                        layer.once('load', finish);
+                                    }
+                                });
+                            } catch (_) {}
+                            setTimeout(finish, 1200);
+                        });
+                        // One more frame so the canvas-rendered polyline paints over the new tiles
+                        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
                     }
                     try {
                         const cs = getComputedStyle(root);
                         const outsideBg = (cs.getPropertyValue('--outside-bg') || '#111').trim() || '#111';
 
+                        // Re-measure scrollHeight AFTER all the layout/reflow work
+                        // (export-narrow class, panel width override, chart redraw,
+                        // tile load) so we don't capture a stale shorter height
+                        // that crops the bottom of the panel.
+                        const captureH = Math.max(panel.scrollHeight, panel.getBoundingClientRect().height);
+                        const captureW = preset.panelW || panel.scrollWidth;
+
                         const captured = await html2canvas(panel, {
                             backgroundColor: null,
                             scale: 2,
                             useCORS: true,
+                            allowTaint: false,
                             logging: false,
                             // Force the capture viewport to the desired panel width so mobile
                             // browsers (with viewports smaller than panelW) don't clip the layout.
-                            windowWidth: preset.panelW || document.documentElement.clientWidth,
-                            windowHeight: Math.max(document.documentElement.clientHeight, panel.scrollHeight),
-                            width: preset.panelW || panel.scrollWidth,
-                            height: panel.scrollHeight
+                            windowWidth: captureW,
+                            windowHeight: Math.max(document.documentElement.clientHeight, captureH),
+                            width: captureW,
+                            height: captureH
                         });
 
                         let outCanvas;
