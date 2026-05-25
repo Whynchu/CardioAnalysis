@@ -1818,6 +1818,48 @@
                 analysisEl.logModal.setAttribute('aria-hidden', 'true');
             }
 
+            function buildOutdoorNotes(results, meta) {
+                const lines = [];
+                const sessionType = (meta.session_type || results.sessionType || '').toLowerCase();
+                const label = sessionType === 'run' ? 'run' : sessionType === 'hybrid' ? 'walk/run' : 'walk';
+                const minutes = Math.round((results.totalTime || 0) / 60);
+                const distM = parseFloat(meta.distance_m || '0');
+                const km = isFinite(distM) ? distM / 1000 : 0;
+                const zones = results.zonePct || {};
+                const hiPct = ((zones.z4 || 0) + (zones.z5 || 0)) * 100;
+                const aerobicPct = ((zones.z2 || 0) + (zones.z3 || 0)) * 100;
+                const dominantZone = ['z1','z2','z3','z4','z5']
+                    .reduce((best, k) => (zones[k] > (zones[best] || 0) ? k : best), 'z1');
+                const zoneLabel = { z1: 'recovery (Z1)', z2: 'light aerobic (Z2)', z3: 'moderate (Z3)', z4: 'hard (Z4)', z5: 'maximum (Z5)' };
+
+                if (km > 0) {
+                    lines.push(`${minutes} min ${label} • ${km.toFixed(2)} km.`);
+                    if (results.totalTime > 0 && km >= 0.1) {
+                        const secPerKm = results.totalTime / km;
+                        const m = Math.floor(secPerKm / 60);
+                        const s = Math.round(secPerKm % 60);
+                        if (secPerKm < 3600) lines.push(`Average pace ${m}:${String(s).padStart(2,'0')} /km.`);
+                    }
+                } else {
+                    lines.push(`${minutes} min ${label}.`);
+                }
+
+                if (hiPct >= 20) {
+                    lines.push(`${hiPct.toFixed(0)}% in Z4–Z5 — strong cardiovascular load for an outdoor session.`);
+                } else if (aerobicPct >= 50) {
+                    lines.push(`${aerobicPct.toFixed(0)}% in aerobic zones (Z2–Z3) — solid endurance building.`);
+                } else {
+                    lines.push(`Time predominantly spent in ${zoneLabel[dominantZone]}.`);
+                }
+
+                if (isFinite(results.maxHr) && results.hrMax) {
+                    const peakPct = (results.maxHr / results.hrMax) * 100;
+                    if (peakPct >= 90) lines.push(`Peak HR reached ${peakPct.toFixed(0)}% of max — high-end effort.`);
+                }
+
+                return lines.join('\n');
+            }
+
             function buildSessionNotes(results, meta) {
                 if (!results) return '';
                 const lines = [];
@@ -1890,6 +1932,9 @@
                         : st === 'weight' ? 'WEIGHTS — HR SESSION'
                         : st === 'mixed' ? 'MIXED — HR SESSION'
                         : st === 'muay_thai' || st === 'muaythai' ? 'MUAY THAI — HR SESSION'
+                        : st === 'walk' ? 'WALK — HR SESSION'
+                        : st === 'run' ? 'RUN — HR SESSION'
+                        : st === 'hybrid' ? 'HYBRID — HR SESSION'
                         : 'HR SESSION REVIEW';
                     analysisEl.titleText.textContent = heading;
                 }
@@ -1921,31 +1966,65 @@
                 if (analysisEl.zoneTotalTime) analysisEl.zoneTotalTime.textContent = formatDuration(zoneBase);
 
                 // Session Summary card
+                const sessionTypeLc = (meta.session_type || results.sessionType || '').toLowerCase();
+                const isOutdoor = sessionTypeLc === 'walk' || sessionTypeLc === 'run' || sessionTypeLc === 'hybrid';
                 const hiTime = ((zones.z4 || 0) + (zones.z5 || 0)) * zoneBase;
                 const hiPct = ((zones.z4 || 0) + (zones.z5 || 0)) * 100;
                 if (analysisEl.summaryPeakHr) analysisEl.summaryPeakHr.textContent = formatBpm(results.maxHr);
                 if (analysisEl.summaryHiTime) analysisEl.summaryHiTime.textContent = `${formatDuration(hiTime)} (${hiPct.toFixed(1)}%)`;
                 if (analysisEl.summaryAvgHr) analysisEl.summaryAvgHr.textContent = formatBpm(results.avgHr);
                 if (analysisEl.summaryEffort) analysisEl.summaryEffort.textContent = `${Math.round(results.effortScore)}/100`;
-                if (analysisEl.summaryPeaks) {
-                    const txt = results.peakCount > 0
-                        ? `${results.peakCount} (${formatDuration(results.peakTime)} total)`
-                        : 'None';
-                    analysisEl.summaryPeaks.textContent = txt;
-                }
-                if (analysisEl.summaryRecovery) {
-                    if (results.restEffScore != null) {
-                        analysisEl.summaryRecovery.textContent = `${Math.round(results.restEffScore)}/100`;
-                    } else if (results.cooldownPresent && isFinite(results.cooldownDrop)) {
-                        analysisEl.summaryRecovery.textContent = `-${Math.round(results.cooldownDrop)} bpm cooldown`;
-                    } else {
-                        analysisEl.summaryRecovery.textContent = '--';
+
+                // Repurpose Peaks/Recovery rows for outdoor sessions (walk/run/hybrid)
+                const peaksLbl = analysisEl.summaryPeaks?.parentNode?.querySelector('.slabel');
+                const recoveryLbl = analysisEl.summaryRecovery?.parentNode?.querySelector('.slabel');
+                if (isOutdoor) {
+                    const distM = parseFloat(meta.distance_m || '0');
+                    const km = isFinite(distM) ? distM / 1000 : 0;
+                    if (peaksLbl) peaksLbl.textContent = 'Distance';
+                    if (analysisEl.summaryPeaks) {
+                        analysisEl.summaryPeaks.textContent = km > 0 ? `${km.toFixed(2)} km` : '--';
+                    }
+                    if (recoveryLbl) recoveryLbl.textContent = 'Avg Pace';
+                    if (analysisEl.summaryRecovery) {
+                        if (km > 0 && results.totalTime > 0) {
+                            const secPerKm = results.totalTime / km;
+                            if (secPerKm < 3600) {
+                                const m = Math.floor(secPerKm / 60);
+                                const s = Math.round(secPerKm % 60);
+                                analysisEl.summaryRecovery.textContent = `${m}:${String(s).padStart(2,'0')} /km`;
+                            } else {
+                                analysisEl.summaryRecovery.textContent = '--';
+                            }
+                        } else {
+                            analysisEl.summaryRecovery.textContent = '--';
+                        }
+                    }
+                } else {
+                    if (peaksLbl) peaksLbl.textContent = 'Peaks';
+                    if (recoveryLbl) recoveryLbl.textContent = 'Recovery';
+                    if (analysisEl.summaryPeaks) {
+                        const txt = results.peakCount > 0
+                            ? `${results.peakCount} (${formatDuration(results.peakTime)} total)`
+                            : 'None';
+                        analysisEl.summaryPeaks.textContent = txt;
+                    }
+                    if (analysisEl.summaryRecovery) {
+                        if (results.restEffScore != null) {
+                            analysisEl.summaryRecovery.textContent = `${Math.round(results.restEffScore)}/100`;
+                        } else if (results.cooldownPresent && isFinite(results.cooldownDrop)) {
+                            analysisEl.summaryRecovery.textContent = `-${Math.round(results.cooldownDrop)} bpm cooldown`;
+                        } else {
+                            analysisEl.summaryRecovery.textContent = '--';
+                        }
                     }
                 }
 
                 // Session notes
                 if (analysisEl.sessionNotes) {
-                    analysisEl.sessionNotes.textContent = buildSessionNotes(results, meta);
+                    analysisEl.sessionNotes.textContent = isOutdoor
+                        ? buildOutdoorNotes(results, meta)
+                        : buildSessionNotes(results, meta);
                 }
 
                 if (analysisEl.sessionType) {

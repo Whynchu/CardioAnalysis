@@ -83,7 +83,7 @@
         /* ===== MODE TOGGLE ===== */
         .mode-toggle {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(3, 1fr);
             background: var(--panel);
             border: 1px solid color-mix(in srgb, var(--accent) 30%, #000);
             border-radius: 14px;
@@ -363,6 +363,7 @@
         <div class="mode-toggle" id="modeToggle">
             <button type="button" data-mode="walk" class="active">Walk</button>
             <button type="button" data-mode="run">Run</button>
+            <button type="button" data-mode="hybrid">Hybrid</button>
         </div>
 
         <div class="status-row">
@@ -558,9 +559,6 @@
                 if (!btn || btn.disabled) return;
                 state.mode = btn.dataset.mode;
                 el.modeToggle.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
-                const isRun = state.mode === 'run';
-                el.paceLabel.textContent = isRun ? 'Pace' : 'Pace';
-                el.paceUnit.textContent = isRun ? '/km' : '/km';
                 updatePaceDisplay();
             });
 
@@ -871,7 +869,7 @@
                 acquireWakeLock();
                 tick();
                 state.tickHandle = setInterval(tick, 1000);
-                toast(`${state.mode === 'run' ? 'Run' : 'Walk'} started`);
+                toast(`${state.mode === 'run' ? 'Run' : state.mode === 'hybrid' ? 'Hybrid' : 'Walk'} started`);
             }
             function pauseRecording() {
                 if (!state.recording) return;
@@ -911,7 +909,7 @@
                 el.btnExport.disabled = state.samples.length === 0;
                 drawMiniChart();
                 if (state.samples.length > 0) {
-                    // Stash in localStorage as a safety net in case the download is blocked
+                    // Stash in localStorage as a safety net (Export button handles download)
                     try {
                         localStorage.setItem('cardioanalysis:last_walk', JSON.stringify({
                             ts: Date.now(),
@@ -921,9 +919,7 @@
                             samples: state.samples
                         }));
                     } catch (err) { console.warn('Stash failed', err); }
-                    // Auto-save so the session can't be lost
-                    exportCsv({ auto: true });
-                    toast(`Saved ${state.samples.length}s session — CSV downloaded`);
+                    toast(`${state.samples.length}s session ready — tap Export CSV to save`);
                 } else {
                     toast('No samples recorded');
                 }
