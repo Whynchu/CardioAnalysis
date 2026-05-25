@@ -605,6 +605,10 @@
             width: 36px; padding: 5px 0; font-size: 0.78rem; border-radius: 7px;
         }
         .analysis-panel.export-narrow .zones-table > div:empty { display: none; }
+        /* Anchor the two right-aligned headers to cols 4 & 5 so Z5 data
+           doesn't bleed into the header row when empty spacers collapse. */
+        .analysis-panel.export-narrow .zones-table > div:nth-child(4) { grid-column: 4; }
+        .analysis-panel.export-narrow .zones-table > div:nth-child(5) { grid-column: 5; }
         .analysis-panel.export-narrow .zones-table .zbar {
             grid-column: 1 / -1;
             height: 14px;
