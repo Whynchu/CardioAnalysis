@@ -30,25 +30,38 @@ The repo is wired to Capacitor so the exact same HTML/JS can be
 shipped as a real `.apk`. Use this when you need GPS that doesn't get
 suspended by Chrome (long walks/runs with the screen off, etc.).
 
-**One-time setup on your dev machine:**
+### Easiest path — let GitHub build the APK for you
+A GitHub Actions workflow (`.github/workflows/android.yml`) builds a
+debug `.apk` on every push to `main`. No Android Studio required.
+
+1. After a push finishes, open the repo → **Actions** tab → click the
+   latest "Android APK" run → scroll to **Artifacts** → download
+   `CardioAnalysis-apk.zip`. Unzip → you get `CardioAnalysis-N.apk`.
+2. To install on your phone with no cable:
+   - Upload the `.apk` to Google Drive (or any file host), grab the
+     share link.
+   - Generate a QR for that link (e.g. qr-code-generator.com).
+   - On the phone, scan → Chrome downloads the APK → tap the file →
+     allow "install from unknown sources" once → installed.
+3. To make a public release with a stable download URL, tag a commit:
+   `git tag v0.1.0 && git push --tags`. The same workflow then
+   attaches the APK to a GitHub Release — that URL is what you put
+   behind a QR code.
+
+### Local build (optional, for iterating with a debugger)
+If you want to step through code or push directly to a tethered phone:
+
 1. Install [Android Studio](https://developer.android.com/studio)
-   (gives you the Android SDK + JDK 17).
-2. Install Node 18+.
-3. From the repo root:
+   (gives you the Android SDK + JDK 17) and Node 18+.
+2. From the repo root:
    ```
    npm install
    npm run cap:sync
    npm run cap:open:android
    ```
    Android Studio opens the generated `android/` project.
-4. Plug in your phone (USB debugging on) and hit the green ▶ in
+3. Plug in your phone (USB debugging on) and hit the green ▶ in
    Android Studio to install + launch the debug build.
-
-**To produce a signed release APK:**
-1. In Android Studio: **Build → Generate Signed Bundle / APK → APK**.
-2. Create a keystore the first time (keep the `.jks` file safe —
-   ignored by git).
-3. Output lands in `android/app/release/`.
 
 **Re-syncing after changing the web app:**
 ```
